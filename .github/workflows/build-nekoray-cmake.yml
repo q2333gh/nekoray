@@ -76,7 +76,9 @@ jobs:
     env:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
-      - name: Generate dummy SSH key
+      # Only generate dummy SSH key for Windows, not for Linux/Docker
+      - name: Generate dummy SSH key (Windows only)
+        if: matrix.platform == 'windows-2022'
         run: |
           mkdir -p /home/builder/.ssh
           ssh-keygen -t rsa -b 2048 -f /home/builder/.ssh/private -N "" -q
@@ -108,22 +110,23 @@ jobs:
         with:
           path: libs/deps
           key: DepsCache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('libs/build_deps_*.sh') }}-Qt${{ matrix.qt_version }}
+      - name: Prepare clean HOME (for Docker)
+        if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform == 'ubuntu-20.04'
+        run: |
+          CLEAN_HOME=$(mktemp -d)
+          mkdir -p $CLEAN_HOME/.ssh
+          touch $CLEAN_HOME/.ssh/private
+          chmod 600 $CLEAN_HOME/.ssh/private
+          echo "CLEAN_HOME=$CLEAN_HOME" >> $GITHUB_ENV
       - name: Build Dependencies
         shell: bash
         if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform != 'ubuntu-20.04'
         run: ./libs/build_deps_all.sh
-      - name: Prepare clean SSH
-        if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform == 'ubuntu-20.04'
-        run: |
-          export HOME=$(mktemp -d)
-          mkdir -p $HOME/.ssh
-          touch $HOME/.ssh/private
-          chmod 600 $HOME/.ssh/private
       - name: Build Dependencies (Docker)
         shell: bash
         if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform == 'ubuntu-20.04'
         env:
-          HOME: ${{ env.HOME }}
+          HOME: ${{ env.CLEAN_HOME }}
         run: |
           docker run --rm \
             -v $PWD:/nekoray \
@@ -150,12 +153,15 @@ jobs:
       - name: Linux - Generate MakeFile and Build
         shell: bash
         if: matrix.platform == 'ubuntu-20.04'
+        env:
+          HOME: ${{ env.CLEAN_HOME }}
         run: |
           docker run --rm \
             -v $PWD:/nekoray \
             -w /nekoray \
+            -e HOME=$HOME \
             ghcr.io/matsuridayo/debian10-qt5:20230131 \
-            bash -c "mkdir build && pushd build && cmake -GNinja -DCMAKE_BUILD_TYPE=Release .. && ninja && popd &&./libs/deploy_linux64.sh"
+            bash -c "mkdir build && pushd build && cmake -GNinja -DCMAKE_BUILD_TYPE=Release .. && ninja && popd && ./libs/deploy_linux64.sh"
       # ========================================================================================================= Deployments
       - name: Tar files
         shell: bash
