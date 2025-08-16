@@ -1087,10 +1087,6 @@ This needs to be run NekoBox with administrator privileges.</source>
         <translation>服务器</translation>
     </message>
     <message>
-        <source>Ads</source>
-        <translation>推广</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>类型</translation>
     </message>
@@ -1652,6 +1648,10 @@ Release note:
     <message>
         <source>The last speed test did not exit completely, please wait. If it persists, please restart the program.</source>
         <translation>上次速度测试未完全退出，请等待。如果问题仍然存在，请重新启动程序。</translation>
+    </message>
+    <message>
+        <source>Speedtest finished.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

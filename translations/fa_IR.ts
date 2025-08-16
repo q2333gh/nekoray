@@ -1083,10 +1083,6 @@ This needs to be run NekoBox with administrator privileges.</source>
         <translation>سرور</translation>
     </message>
     <message>
-        <source>Ads</source>
-        <translation>تبلیغات</translation>
-    </message>
-    <message>
         <source>Document</source>
         <translation>اسناد</translation>
     </message>
@@ -1638,6 +1634,10 @@ Direct: %2</source>
     </message>
     <message>
         <source>The last speed test did not exit completely, please wait. If it persists, please restart the program.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Speedtest finished.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
