@@ -15,12 +15,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up deploy key
+      - name: Ensure builder user exists and set up deploy key
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
+          # Create builder user if it doesn't exist
+          if ! id builder &>/dev/null; then
+            sudo useradd -m builder
+          fi
+          # Set up SSH directory and private key for builder
+          sudo mkdir -p /home/builder/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" | sudo tee /home/builder/.ssh/private > /dev/null
+          sudo chmod 600 /home/builder/.ssh/private
+          sudo ssh-keyscan -H aur.archlinux.org | sudo tee -a /home/builder/.ssh/known_hosts > /dev/null
+          sudo chown -R builder:builder /home/builder/.ssh
 
       - uses: chitang233/aur-pkgbuild-builder@main
         with:
