@@ -24,14 +24,11 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
-      - name: Remove all SSH keys
+      - name: Generate dummy SSH key
         run: |
-          rm -rf /home/builder/.ssh
-      - name: Remove invalid SSH key
-        run: |
-          if [ -f /home/builder/.ssh/private ]; then
-            mv /home/builder/.ssh/private /home/builder/.ssh/private.bak
-          fi
+          mkdir -p /home/builder/.ssh
+          ssh-keygen -t rsa -b 2048 -f /home/builder/.ssh/private -N "" -q
+          chmod 600 /home/builder/.ssh/private
       - name: Checking out sources
         uses: actions/checkout@v3
       - name: Go Status
@@ -79,14 +76,11 @@ jobs:
     env:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
-      - name: Remove all SSH keys
+      - name: Generate dummy SSH key
         run: |
-          rm -rf /home/builder/.ssh
-      - name: Remove invalid SSH key
-        run: |
-          if [ -f /home/builder/.ssh/private ]; then
-            mv /home/builder/.ssh/private /home/builder/.ssh/private.bak
-          fi
+          mkdir -p /home/builder/.ssh
+          ssh-keygen -t rsa -b 2048 -f /home/builder/.ssh/private -N "" -q
+          chmod 600 /home/builder/.ssh/private
       - name: Checking out sources
         uses: actions/checkout@v3
         with:
@@ -169,14 +163,14 @@ jobs:
       - build-cpp
       - build-go
     steps:
-      - name: Remove all SSH keys
+
+
+      - name: Generate dummy SSH key
         run: |
-          rm -rf /home/builder/.ssh    
-      - name: Remove invalid SSH key
-        run: |
-          if [ -f /home/builder/.ssh/private ]; then
-            mv /home/builder/.ssh/private /home/builder/.ssh/private.bak
-          fi
+          mkdir -p /home/builder/.ssh
+          ssh-keygen -t rsa -b 2048 -f /home/builder/.ssh/private -N "" -q
+          chmod 600 /home/builder/.ssh/private
+
       - name: Checking out sources
         uses: actions/checkout@v3
       - name: Download Artifacts
