@@ -24,6 +24,9 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
+      - name: Remove all SSH keys
+        run: |
+          rm -rf /home/builder/.ssh
       - name: Remove invalid SSH key
         run: |
           if [ -f /home/builder/.ssh/private ]; then
@@ -76,6 +79,9 @@ jobs:
     env:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
     steps:
+      - name: Remove all SSH keys
+        run: |
+          rm -rf /home/builder/.ssh
       - name: Remove invalid SSH key
         run: |
           if [ -f /home/builder/.ssh/private ]; then
@@ -163,6 +169,9 @@ jobs:
       - build-cpp
       - build-go
     steps:
+      - name: Remove all SSH keys
+        run: |
+          rm -rf /home/builder/.ssh    
       - name: Remove invalid SSH key
         run: |
           if [ -f /home/builder/.ssh/private ]; then
