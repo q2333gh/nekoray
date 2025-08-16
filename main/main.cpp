@@ -64,6 +64,7 @@ int main(int argc, char* argv[]) {
     QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
 #endif
     QApplication::setQuitOnLastWindowClosed(false);
+    
     auto preQApp = new QApplication(argc, argv);
 
     // Clean
