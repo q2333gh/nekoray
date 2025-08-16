@@ -112,13 +112,23 @@ jobs:
         shell: bash
         if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform != 'ubuntu-20.04'
         run: ./libs/build_deps_all.sh
+      - name: Prepare clean SSH
+        if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform == 'ubuntu-20.04'
+        run: |
+          export HOME=$(mktemp -d)
+          mkdir -p $HOME/.ssh
+          touch $HOME/.ssh/private
+          chmod 600 $HOME/.ssh/private
       - name: Build Dependencies (Docker)
         shell: bash
         if: steps.cache-deps.outputs.cache-hit != 'true' && matrix.platform == 'ubuntu-20.04'
+        env:
+          HOME: ${{ env.HOME }}
         run: |
           docker run --rm \
             -v $PWD:/nekoray \
             -w /nekoray \
+            -e HOME=$HOME \
             ghcr.io/matsuridayo/debian10-qt5:20230131 \
             bash -c "./libs/build_deps_all.sh"
       # ========================================================================================================= Generate MakeFile and Build
