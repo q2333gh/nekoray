@@ -106,3 +106,18 @@ Copy-Item -LiteralPath $BuiltExe -Destination $TargetExe -Force
 
 Write-Info "Done. nekobox.exe is available in repo root."
 
+# Download public resources (geosite, geodb, etc.)
+Write-Info "Downloading public resources..."
+$DownloadScript = Join-Path $RepoRoot "libs\download_resources.ps1"
+$ReleaseDir = Join-Path $BuildDir "$Config"
+
+if (Test-Path -LiteralPath $DownloadScript) {
+    & powershell -ExecutionPolicy Bypass -File $DownloadScript -DestDir $ReleaseDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "Failed to download public resources (exit code=$LASTEXITCODE)."
+        exit $LASTEXITCODE
+    }
+    Write-Info "Public resources downloaded to $ReleaseDir"
+} else {
+    Write-Host "[WARN] download_resources.ps1 not found, skipping resource download" -ForegroundColor Yellow
+}
