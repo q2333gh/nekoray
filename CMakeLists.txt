@@ -7,6 +7,27 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Optional: enable clang-tidy with cognitive complexity warnings when available
+option(NEKO_ENABLE_CLANG_TIDY "Enable clang-tidy static analysis if available" ON)
+if (NEKO_ENABLE_CLANG_TIDY)
+    # Try PATH first, then common LLVM install location on Windows
+    if (WIN32)
+        find_program(CLANG_TIDY_EXE NAMES clang-tidy clang-tidy.exe
+            HINTS "C:/Program Files/LLVM/bin" "C:/Program Files (x86)/LLVM/bin")
+    else ()
+        find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+    endif ()
+
+    if (CLANG_TIDY_EXE)
+        # Enforce cognitive complexity threshold (~25) via readability-function-cognitive-complexity
+        set(CMAKE_CXX_CLANG_TIDY
+            "${CLANG_TIDY_EXE};-checks=readability-function-cognitive-complexity;--warnings-as-errors=readability-function-cognitive-complexity")
+        message(STATUS "clang-tidy enabled: ${CLANG_TIDY_EXE}")
+    else ()
+        message(STATUS "clang-tidy not found, NEKO_ENABLE_CLANG_TIDY is ON but will be ignored")
+    endif ()
+endif ()
+
 # WINDOWS PDB FILE
 if (WIN32)
     if (MSVC)

@@ -75,6 +75,12 @@ namespace NekoGui_sys {
         ExternalProcess::program = core_path;
         ExternalProcess::arguments = args;
 
+        setup_stdout_handler();
+        setup_stderr_handler();
+        setup_state_handlers();
+    }
+
+    void CoreProcess::setup_stdout_handler() {
         connect(this, &QProcess::readyReadStandardOutput, this, [&]() {
             auto log = readAllStandardOutput();
             if (!NekoGui::dataStore->core_running) {
@@ -93,6 +99,9 @@ namespace NekoGui_sys {
             if (logCounter.fetchAndAddRelaxed(log.count("\n")) > NekoGui::dataStore->max_log_line) return;
             MW_show_log(log);
         });
+    }
+
+    void CoreProcess::setup_stderr_handler() {
         connect(this, &QProcess::readyReadStandardError, this, [&]() {
             auto log = readAllStandardError().trimmed();
             if (show_stderr) {
@@ -109,6 +118,9 @@ namespace NekoGui_sys {
                 MW_show_log("start core error occurred: " + errorString() + "\n");
             }
         });
+    }
+
+    void CoreProcess::setup_state_handlers() {
         connect(this, &QProcess::stateChanged, this, [&](QProcess::ProcessState state) {
             if (state == QProcess::NotRunning) {
                 NekoGui::dataStore->core_running = false;

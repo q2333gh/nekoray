@@ -144,4 +144,9 @@ readability-static-accessed-through-instance,
 readability-static-definition-in-anonymous-namespace,
 readability-string-compare,
 readability-uniqueptr-delete-release,
-readability-use-anyofallof'
+readability-use-anyofallof,
+readability-function-cognitive-complexity'
+
+CheckOptions:
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '25'

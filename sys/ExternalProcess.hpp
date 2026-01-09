@@ -42,6 +42,10 @@ namespace NekoGui_sys {
         bool show_stderr = false;
         bool failed_to_start = false;
         bool restarting = false;
+
+        void setup_stdout_handler();
+        void setup_stderr_handler();
+        void setup_state_handlers();
     };
 
     // 手动管理

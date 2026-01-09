@@ -166,6 +166,8 @@ private:
     QList<std::shared_ptr<NekoGui::ProxyEntity>> get_selected_or_group();
 
     void dialog_message_impl(const QString &sender, const QString &info);
+    void handle_info_message(const QString &info);
+    void handle_sender_message(const QString &sender, const QString &info);
 
     void refresh_proxy_list_impl(const int &id = -1, GroupSortAction groupSortAction = {});
 

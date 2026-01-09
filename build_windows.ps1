@@ -1,0 +1,108 @@
+<#
+  Simple Windows local build script for nekoray (PowerShell, ASCII only)
+
+  Usage (run from repo root):
+    pwsh ./build_windows.ps1
+    or
+    powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
+
+  Parameters:
+    -QtRoot   Qt SDK root directory (default: .\qt_lib\qt650)
+    -Config   CMake configuration (Debug / Release / RelWithDebInfo / MinSizeRel)
+
+  Steps:
+    1. Configure CMake with Qt6 and minimal external deps
+    2. Build nekobox (MSVC)
+    3. Copy build\<Config>\nekobox.exe to repo root as nekobox.exe
+#>
+
+param(
+    [string]$QtRoot = "",
+    [ValidateSet("Debug", "Release", "RelWithDebInfo", "MinSizeRel")]
+    [string]$Config = "Release"
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "[INFO] $Message"
+}
+
+function Write-ErrorMsg {
+    param([string]$Message)
+    Write-Host "[ERROR] $Message" -ForegroundColor Red
+}
+
+# Repo root (directory of this script)
+$RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $RepoRoot
+
+Write-Info "Repo root: $RepoRoot"
+
+if (-not $QtRoot -or $QtRoot.Trim() -eq "") {
+    # Default: repo-local Qt 6.5
+    $QtRoot = Join-Path $RepoRoot "qt_lib\qt650"
+}
+
+if (-not (Test-Path -LiteralPath $QtRoot)) {
+    Write-ErrorMsg "QtRoot '$QtRoot' does not exist. Please ensure Qt SDK is extracted there or pass -QtRoot explicitly."
+    exit 1
+}
+
+Write-Info "Using QtRoot: $QtRoot"
+
+# Check CMake
+$cmakeVersion = & cmake --version 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $cmakeVersion) {
+    Write-ErrorMsg "cmake not found or not working. Please install CMake and ensure it is in PATH."
+    exit 1
+}
+
+Write-Info ("CMake OK: " + ($cmakeVersion -split "`n")[0])
+
+$BuildDir = Join-Path $RepoRoot "build"
+
+Write-Info "Configuring CMake (Config=$Config, QT_VERSION_MAJOR=6, minimal external deps)..."
+
+& cmake -S $RepoRoot -B $BuildDir `
+    -DQT_VERSION_MAJOR=6 `
+    -DNKR_NO_GRPC=ON `
+    -DNKR_NO_YAML=ON `
+    -DNKR_NO_ZXING=ON `
+    -DNKR_NO_QHOTKEY=ON `
+    -DCMAKE_PREFIX_PATH="$QtRoot"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-ErrorMsg "CMake configure failed (exit code=$LASTEXITCODE)."
+    exit $LASTEXITCODE
+}
+
+Write-Info "Building (Config=$Config)..."
+
+& cmake --build $BuildDir --config $Config
+
+if ($LASTEXITCODE -ne 0) {
+    Write-ErrorMsg "Build failed (exit code=$LASTEXITCODE)."
+    exit $LASTEXITCODE
+}
+
+$BuiltExe = Join-Path $BuildDir "$Config\nekobox.exe"
+
+if (-not (Test-Path -LiteralPath $BuiltExe)) {
+    Write-ErrorMsg "Built exe not found at expected path: $BuiltExe"
+    exit 1
+}
+
+Write-Info "Build success: $BuiltExe"
+
+# Copy to repo root
+$TargetExe = Join-Path $RepoRoot "nekobox.exe"
+
+Write-Info "Copying to repo root: $TargetExe"
+
+Copy-Item -LiteralPath $BuiltExe -Destination $TargetExe -Force
+
+Write-Info "Done. nekobox.exe is available in repo root."
+
