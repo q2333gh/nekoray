@@ -34,20 +34,93 @@ namespace NekoGui_sub {
         }
     }
 
+    // Protocol parsing helper functions
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseNekorayLink(const QString &str, bool &needFix) {
+        needFix = false;
+        auto link = QUrl(str);
+        if (!link.isValid()) return nullptr;
+        
+        auto ent = NekoGui::ProfileManager::NewProxyEntity(link.host());
+        if (ent->bean->version == -114514) return nullptr;
+        
+        auto j = DecodeB64IfValid(link.fragment().toUtf8(), QByteArray::Base64UrlEncoding);
+        if (j.isEmpty()) return nullptr;
+        
+        ent->bean->FromJsonBytes(j);
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseSocksLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("socks");
+        if (!ent->SocksHTTPBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseHttpLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("http");
+        if (!ent->SocksHTTPBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseShadowsocksLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("shadowsocks");
+        if (!ent->ShadowSocksBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseVMessLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("vmess");
+        if (!ent->VMessBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseVLESSLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("vless");
+        if (!ent->TrojanVLESSBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseTrojanLink(const QString &str) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("trojan");
+        if (!ent->TrojanVLESSBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseNaiveLink(const QString &str, bool &needFix) {
+        needFix = false;
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("naive");
+        if (!ent->NaiveBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseHysteria2Link(const QString &str, bool &needFix) {
+        needFix = false;
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("hysteria2");
+        if (!ent->QUICBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
+    std::shared_ptr<NekoGui::ProxyEntity> RawUpdater::parseTUICLink(const QString &str, bool &needFix) {
+        needFix = false;
+        auto ent = NekoGui::ProfileManager::NewProxyEntity("tuic");
+        if (!ent->QUICBean()->TryParseLink(str)) return nullptr;
+        return ent;
+    }
+
     void RawUpdater::update(const QString &str) {
-        // Base64 encoded subscription
+        // Base64 encoded subscription - early exit
         if (auto str2 = DecodeB64IfValid(str); !str2.isEmpty()) {
             update(str2);
             return;
         }
 
-        // Clash
+        // Clash - early exit
         if (str.contains("proxies:")) {
             updateClash(str);
             return;
         }
 
-        // Multi line
+        // Multi line - early exit
         if (str.count("\n") > 0) {
             auto list = str.split("\n");
             for (const auto &str2: list) {
@@ -59,91 +132,35 @@ namespace NekoGui_sub {
         std::shared_ptr<NekoGui::ProxyEntity> ent;
         bool needFix = true;
 
-        // Nekoray format
+        // Try parsing different protocols
         if (str.startsWith("nekoray://")) {
-            needFix = false;
-            auto link = QUrl(str);
-            if (!link.isValid()) return;
-            ent = NekoGui::ProfileManager::NewProxyEntity(link.host());
-            if (ent->bean->version == -114514) return;
-            auto j = DecodeB64IfValid(link.fragment().toUtf8(), QByteArray::Base64UrlEncoding);
-            if (j.isEmpty()) return;
-            ent->bean->FromJsonBytes(j);
+            ent = parseNekorayLink(str, needFix);
+        } else if (str.startsWith("socks5://") || str.startsWith("socks4://") ||
+                   str.startsWith("socks4a://") || str.startsWith("socks://")) {
+            ent = parseSocksLink(str);
+        } else if (str.startsWith("http://") || str.startsWith("https://")) {
+            ent = parseHttpLink(str);
+        } else if (str.startsWith("ss://")) {
+            ent = parseShadowsocksLink(str);
+        } else if (str.startsWith("vmess://")) {
+            ent = parseVMessLink(str);
+        } else if (str.startsWith("vless://")) {
+            ent = parseVLESSLink(str);
+        } else if (str.startsWith("trojan://")) {
+            ent = parseTrojanLink(str);
+        } else if (str.startsWith("naive+")) {
+            ent = parseNaiveLink(str, needFix);
+        } else if (str.startsWith("hysteria2://") || str.startsWith("hy2://")) {
+            ent = parseHysteria2Link(str, needFix);
+        } else if (str.startsWith("tuic://")) {
+            ent = parseTUICLink(str, needFix);
         }
 
-        // SOCKS
-        if (str.startsWith("socks5://") || str.startsWith("socks4://") ||
-            str.startsWith("socks4a://") || str.startsWith("socks://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("socks");
-            auto ok = ent->SocksHTTPBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // HTTP
-        if (str.startsWith("http://") || str.startsWith("https://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("http");
-            auto ok = ent->SocksHTTPBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // ShadowSocks
-        if (str.startsWith("ss://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("shadowsocks");
-            auto ok = ent->ShadowSocksBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // VMess
-        if (str.startsWith("vmess://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("vmess");
-            auto ok = ent->VMessBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // VLESS
-        if (str.startsWith("vless://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("vless");
-            auto ok = ent->TrojanVLESSBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // Trojan
-        if (str.startsWith("trojan://")) {
-            ent = NekoGui::ProfileManager::NewProxyEntity("trojan");
-            auto ok = ent->TrojanVLESSBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // Naive
-        if (str.startsWith("naive+")) {
-            needFix = false;
-            ent = NekoGui::ProfileManager::NewProxyEntity("naive");
-            auto ok = ent->NaiveBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // Hysteria2
-        if (str.startsWith("hysteria2://") || str.startsWith("hy2://")) {
-            needFix = false;
-            ent = NekoGui::ProfileManager::NewProxyEntity("hysteria2");
-            auto ok = ent->QUICBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
-        // TUIC
-        if (str.startsWith("tuic://")) {
-            needFix = false;
-            ent = NekoGui::ProfileManager::NewProxyEntity("tuic");
-            auto ok = ent->QUICBean()->TryParseLink(str);
-            if (!ok) return;
-        }
-
+        // Early exit if no valid entity parsed
         if (ent == nullptr) return;
 
-        // Fix
+        // Fix and add profile
         if (needFix) RawUpdater_FixEnt(ent);
-
-        // End
         NekoGui::profileManager->AddProfile(ent, gid_add_to);
         updated_order += ent;
     }
@@ -210,6 +227,257 @@ namespace NekoGui_sub {
 
 #endif
 
+    // Clash parsing helper functions
+    void RawUpdater::processClashStreamOpts(const YAML::Node &proxy, NekoGui_fmt::V2rayStreamSettings *stream) {
+        // WebSocket opts
+        auto ws = NodeChild(proxy, {"ws-opts", "ws-opt"});
+        if (ws.IsMap()) {
+            auto headers = ws["headers"];
+            for (auto header: headers) {
+                if (Node2QString(header.first).toLower() == "host") {
+                    stream->host = Node2QString(header.second);
+                }
+            }
+            stream->path = Node2QString(ws["path"]);
+            stream->ws_early_data_length = Node2Int(ws["max-early-data"]);
+            stream->ws_early_data_name = Node2QString(ws["early-data-header-name"]);
+        }
+
+        // gRPC opts
+        auto grpc = NodeChild(proxy, {"grpc-opts", "grpc-opt"});
+        if (grpc.IsMap()) {
+            stream->path = Node2QString(grpc["grpc-service-name"]);
+        }
+
+        // H2 opts
+        auto h2 = NodeChild(proxy, {"h2-opts", "h2-opt"});
+        if (h2.IsMap()) {
+            auto hosts = h2["host"];
+            for (auto host: hosts) {
+                stream->host = Node2QString(host);
+                break;
+            }
+            stream->path = Node2QString(h2["path"]);
+        }
+
+        // TCP HTTP opts
+        auto tcp_http = NodeChild(proxy, {"http-opts", "http-opt"});
+        if (tcp_http.IsMap()) {
+            stream->network = "tcp";
+            stream->header_type = "http";
+            auto headers = tcp_http["headers"];
+            for (auto header: headers) {
+                if (Node2QString(header.first).toLower() == "host") {
+                    stream->host = Node2QString(header.second[0]);
+                }
+                break;
+            }
+            auto paths = tcp_http["path"];
+            for (auto path: paths) {
+                stream->path = Node2QString(path);
+                break;
+            }
+        }
+
+        // Reality opts
+        auto reality = NodeChild(proxy, {"reality-opts"});
+        if (reality.IsMap()) {
+            stream->reality_pbk = Node2QString(reality["public-key"]);
+            stream->reality_sid = Node2QString(reality["short-id"]);
+        }
+    }
+
+    void RawUpdater::processClashShadowsocks(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent) {
+        auto bean = ent->ShadowSocksBean();
+        bean->method = Node2QString(proxy["cipher"]).replace("dummy", "none");
+        bean->password = Node2QString(proxy["password"]);
+
+        // UDP over TCP
+        if (Node2Bool(proxy["udp-over-tcp"])) {
+            bean->uot = Node2Int(proxy["udp-over-tcp-version"]);
+            if (bean->uot == 0) bean->uot = 2;
+        }
+
+        // Plugin handling
+        auto plugin_n = proxy["plugin"];
+        auto pluginOpts_n = proxy["plugin-opts"];
+        if (!plugin_n.IsDefined() || !pluginOpts_n.IsDefined()) {
+            auto smux = NodeChild(proxy, {"smux"});
+            if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
+            return;
+        }
+
+        QStringList ssPlugin;
+        auto plugin = Node2QString(plugin_n);
+        if (plugin == "obfs") {
+            ssPlugin << "obfs-local";
+            ssPlugin << "obfs=" + Node2QString(pluginOpts_n["mode"]);
+            ssPlugin << "obfs-host=" + Node2QString(pluginOpts_n["host"]);
+        } else if (plugin == "v2ray-plugin") {
+            auto mode = Node2QString(pluginOpts_n["mode"]);
+            auto host = Node2QString(pluginOpts_n["host"]);
+            auto path = Node2QString(pluginOpts_n["path"]);
+            ssPlugin << "v2ray-plugin";
+            if (!mode.isEmpty() && mode != "websocket") ssPlugin << "mode=" + mode;
+            if (Node2Bool(pluginOpts_n["tls"])) ssPlugin << "tls";
+            if (!host.isEmpty()) ssPlugin << "host=" + host;
+            if (!path.isEmpty()) ssPlugin << "path=" + path;
+        }
+        bean->plugin = ssPlugin.join(";");
+
+        // sing-mux
+        auto smux = NodeChild(proxy, {"smux"});
+        if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
+    }
+
+    void RawUpdater::processClashSocksHttp(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent, const QString &type) {
+        auto bean = ent->SocksHTTPBean();
+        bean->username = Node2QString(proxy["username"]);
+        bean->password = Node2QString(proxy["password"]);
+        if (Node2Bool(proxy["tls"])) bean->stream->security = "tls";
+        if (Node2Bool(proxy["skip-cert-verify"])) bean->stream->allow_insecure = true;
+    }
+
+    void RawUpdater::processClashTrojanVLESS(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent, const QString &type, bool &needFix) {
+        needFix = true;
+        auto bean = ent->TrojanVLESSBean();
+
+        if (type == "vless") {
+            bean->flow = Node2QString(proxy["flow"]);
+            bean->password = Node2QString(proxy["uuid"]);
+            if (Node2Bool(proxy["packet-addr"])) {
+                bean->stream->packet_encoding = "packetaddr";
+            } else {
+                bean->stream->packet_encoding = "xudp";
+            }
+        } else {
+            bean->password = Node2QString(proxy["password"]);
+        }
+
+        bean->stream->security = "tls";
+        bean->stream->network = Node2QString(proxy["network"], "tcp");
+        bean->stream->sni = FIRST_OR_SECOND(Node2QString(proxy["sni"]), Node2QString(proxy["servername"]));
+        bean->stream->alpn = Node2QStringList(proxy["alpn"]).join(",");
+        bean->stream->allow_insecure = Node2Bool(proxy["skip-cert-verify"]);
+        bean->stream->utlsFingerprint = Node2QString(proxy["client-fingerprint"]);
+        if (bean->stream->utlsFingerprint.isEmpty()) {
+            bean->stream->utlsFingerprint = NekoGui::dataStore->utlsFingerprint;
+        }
+
+        // sing-mux
+        auto smux = NodeChild(proxy, {"smux"});
+        if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
+
+        // Stream opts
+        processClashStreamOpts(proxy, bean->stream.get());
+    }
+
+    void RawUpdater::processClashVMess(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent, bool &needFix) {
+        needFix = true;
+        auto bean = ent->VMessBean();
+        bean->uuid = Node2QString(proxy["uuid"]);
+        bean->aid = Node2Int(proxy["alterId"]);
+        bean->security = Node2QString(proxy["cipher"], bean->security);
+        bean->stream->network = Node2QString(proxy["network"], "tcp").replace("h2", "http");
+        bean->stream->sni = FIRST_OR_SECOND(Node2QString(proxy["sni"]), Node2QString(proxy["servername"]));
+        bean->stream->alpn = Node2QStringList(proxy["alpn"]).join(",");
+        if (Node2Bool(proxy["tls"])) bean->stream->security = "tls";
+        if (Node2Bool(proxy["skip-cert-verify"])) bean->stream->allow_insecure = true;
+        bean->stream->utlsFingerprint = Node2QString(proxy["client-fingerprint"]);
+        if (bean->stream->utlsFingerprint.isEmpty()) {
+            bean->stream->utlsFingerprint = NekoGui::dataStore->utlsFingerprint;
+        }
+
+        // sing-mux
+        auto smux = NodeChild(proxy, {"smux"});
+        if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
+
+        // meta packet encoding
+        if (Node2Bool(proxy["xudp"])) bean->stream->packet_encoding = "xudp";
+        if (Node2Bool(proxy["packet-addr"])) bean->stream->packet_encoding = "packetaddr";
+
+        // Stream opts
+        processClashStreamOpts(proxy, bean->stream.get());
+
+        // Special handling for Xray early data
+        auto ws = NodeChild(proxy, {"ws-opts", "ws-opt"});
+        if (ws.IsMap() && Node2QString(ws["early-data-header-name"]) == "Sec-WebSocket-Protocol") {
+            bean->stream->path += "?ed=" + Node2QString(ws["max-early-data"]);
+        }
+    }
+
+    void RawUpdater::processClashHysteria2(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent) {
+        auto bean = ent->QUICBean();
+        bean->hopPort = Node2QString(proxy["ports"]);
+        bean->allowInsecure = Node2Bool(proxy["skip-cert-verify"]);
+        bean->caText = Node2QString(proxy["ca-str"]);
+        bean->sni = Node2QString(proxy["sni"]);
+        bean->obfsPassword = Node2QString(proxy["obfs-password"]);
+        bean->password = Node2QString(proxy["password"]);
+        bean->uploadMbps = Node2QString(proxy["up"]).split(" ")[0].toInt();
+        bean->downloadMbps = Node2QString(proxy["down"]).split(" ")[0].toInt();
+    }
+
+    void RawUpdater::processClashTUIC(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent) {
+        auto bean = ent->QUICBean();
+        bean->uuid = Node2QString(proxy["uuid"]);
+        bean->password = Node2QString(proxy["password"]);
+
+        if (Node2Int(proxy["heartbeat-interval"]) != 0) {
+            bean->heartbeat = Int2String(Node2Int(proxy["heartbeat-interval"])) + "ms";
+        }
+
+        bean->udpRelayMode = Node2QString(proxy["udp-relay-mode"], bean->udpRelayMode);
+        bean->congestionControl = Node2QString(proxy["congestion-controller"], bean->congestionControl);
+        bean->disableSni = Node2Bool(proxy["disable-sni"]);
+        bean->zeroRttHandshake = Node2Bool(proxy["reduce-rtt"]);
+        bean->allowInsecure = Node2Bool(proxy["skip-cert-verify"]);
+        bean->alpn = Node2QStringList(proxy["alpn"]).join(",");
+        bean->caText = Node2QString(proxy["ca-str"]);
+        bean->sni = Node2QString(proxy["sni"]);
+
+        if (Node2Bool(proxy["udp-over-stream"])) bean->uos = true;
+
+        if (!Node2QString(proxy["ip"]).isEmpty()) {
+            if (bean->sni.isEmpty()) bean->sni = bean->serverAddress;
+            bean->serverAddress = Node2QString(proxy["ip"]);
+        }
+    }
+
+    void RawUpdater::processClashProxy(const YAML::Node &proxy, const QString &type) {
+        auto ent = NekoGui::ProfileManager::NewProxyEntity(type);
+        if (ent->bean->version == -114514) return;
+
+        // Common fields
+        ent->bean->name = Node2QString(proxy["name"]);
+        ent->bean->serverAddress = Node2QString(proxy["server"]);
+        ent->bean->serverPort = Node2Int(proxy["port"]);
+
+        // Check original type for shadowsocks (before normalization)
+        auto type_clash = Node2QString(proxy["type"]).toLower();
+        bool needFix = false;
+        
+        if (type_clash == "ss" || type_clash == "ssr") {
+            processClashShadowsocks(proxy, ent);
+        } else if (type == "socks" || type == "http") {
+            processClashSocksHttp(proxy, ent, type);
+        } else if (type == "trojan" || type == "vless") {
+            processClashTrojanVLESS(proxy, ent, type, needFix);
+        } else if (type == "vmess") {
+            processClashVMess(proxy, ent, needFix);
+        } else if (type == "hysteria2") {
+            processClashHysteria2(proxy, ent);
+        } else if (type == "tuic") {
+            processClashTUIC(proxy, ent);
+        } else {
+            return;
+        }
+
+        if (needFix) RawUpdater_FixEnt(ent);
+        NekoGui::profileManager->AddProfile(ent, gid_add_to);
+        updated_order += ent;
+    }
+
     // https://github.com/Dreamacro/clash/wiki/configuration
     void RawUpdater::updateClash(const QString &str) {
 #ifndef NKR_NO_YAML
@@ -217,241 +485,9 @@ namespace NekoGui_sub {
             auto proxies = YAML::Load(str.toStdString())["proxies"];
             for (auto proxy: proxies) {
                 auto type = Node2QString(proxy["type"]).toLower();
-                auto type_clash = type;
-
                 if (type == "ss" || type == "ssr") type = "shadowsocks";
                 if (type == "socks5") type = "socks";
-
-                auto ent = NekoGui::ProfileManager::NewProxyEntity(type);
-                if (ent->bean->version == -114514) continue;
-                bool needFix = false;
-
-                // common
-                ent->bean->name = Node2QString(proxy["name"]);
-                ent->bean->serverAddress = Node2QString(proxy["server"]);
-                ent->bean->serverPort = Node2Int(proxy["port"]);
-
-                if (type_clash == "ss") {
-                    auto bean = ent->ShadowSocksBean();
-                    bean->method = Node2QString(proxy["cipher"]).replace("dummy", "none");
-                    bean->password = Node2QString(proxy["password"]);
-                    auto plugin_n = proxy["plugin"];
-                    auto pluginOpts_n = proxy["plugin-opts"];
-
-                    // UDP over TCP
-                    if (Node2Bool(proxy["udp-over-tcp"])) {
-                        bean->uot = Node2Int(proxy["udp-over-tcp-version"]);
-                        if (bean->uot == 0) bean->uot = 2;
-                    }
-
-                    if (plugin_n.IsDefined() && pluginOpts_n.IsDefined()) {
-                        QStringList ssPlugin;
-                        auto plugin = Node2QString(plugin_n);
-                        if (plugin == "obfs") {
-                            ssPlugin << "obfs-local";
-                            ssPlugin << "obfs=" + Node2QString(pluginOpts_n["mode"]);
-                            ssPlugin << "obfs-host=" + Node2QString(pluginOpts_n["host"]);
-                        } else if (plugin == "v2ray-plugin") {
-                            auto mode = Node2QString(pluginOpts_n["mode"]);
-                            auto host = Node2QString(pluginOpts_n["host"]);
-                            auto path = Node2QString(pluginOpts_n["path"]);
-                            ssPlugin << "v2ray-plugin";
-                            if (!mode.isEmpty() && mode != "websocket") ssPlugin << "mode=" + mode;
-                            if (Node2Bool(pluginOpts_n["tls"])) ssPlugin << "tls";
-                            if (!host.isEmpty()) ssPlugin << "host=" + host;
-                            if (!path.isEmpty()) ssPlugin << "path=" + path;
-                            // clash only: skip-cert-verify
-                            // clash only: headers
-                            // clash: mux=?
-                        }
-                        bean->plugin = ssPlugin.join(";");
-                    }
-
-                    // sing-mux
-                    auto smux = NodeChild(proxy, {"smux"});
-                    if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
-                } else if (type == "socks" || type == "http") {
-                    auto bean = ent->SocksHTTPBean();
-                    bean->username = Node2QString(proxy["username"]);
-                    bean->password = Node2QString(proxy["password"]);
-                    if (Node2Bool(proxy["tls"])) bean->stream->security = "tls";
-                    if (Node2Bool(proxy["skip-cert-verify"])) bean->stream->allow_insecure = true;
-                } else if (type == "trojan" || type == "vless") {
-                    needFix = true;
-                    auto bean = ent->TrojanVLESSBean();
-                    if (type == "vless") {
-                        bean->flow = Node2QString(proxy["flow"]);
-                        bean->password = Node2QString(proxy["uuid"]);
-                        // meta packet encoding
-                        if (Node2Bool(proxy["packet-addr"])) {
-                            bean->stream->packet_encoding = "packetaddr";
-                        } else {
-                            // For VLESS, default to use xudp
-                            bean->stream->packet_encoding = "xudp";
-                        }
-                    } else {
-                        bean->password = Node2QString(proxy["password"]);
-                    }
-                    bean->stream->security = "tls";
-                    bean->stream->network = Node2QString(proxy["network"], "tcp");
-                    bean->stream->sni = FIRST_OR_SECOND(Node2QString(proxy["sni"]), Node2QString(proxy["servername"]));
-                    bean->stream->alpn = Node2QStringList(proxy["alpn"]).join(",");
-                    bean->stream->allow_insecure = Node2Bool(proxy["skip-cert-verify"]);
-                    bean->stream->utlsFingerprint = Node2QString(proxy["client-fingerprint"]);
-                    if (bean->stream->utlsFingerprint.isEmpty()) {
-                        bean->stream->utlsFingerprint = NekoGui::dataStore->utlsFingerprint;
-                    }
-
-                    // sing-mux
-                    auto smux = NodeChild(proxy, {"smux"});
-                    if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
-
-                    // opts
-                    auto ws = NodeChild(proxy, {"ws-opts", "ws-opt"});
-                    if (ws.IsMap()) {
-                        auto headers = ws["headers"];
-                        for (auto header: headers) {
-                            if (Node2QString(header.first).toLower() == "host") {
-                                bean->stream->host = Node2QString(header.second);
-                            }
-                        }
-                        bean->stream->path = Node2QString(ws["path"]);
-                        bean->stream->ws_early_data_length = Node2Int(ws["max-early-data"]);
-                        bean->stream->ws_early_data_name = Node2QString(ws["early-data-header-name"]);
-                    }
-
-                    auto grpc = NodeChild(proxy, {"grpc-opts", "grpc-opt"});
-                    if (grpc.IsMap()) {
-                        bean->stream->path = Node2QString(grpc["grpc-service-name"]);
-                    }
-
-                    auto reality = NodeChild(proxy, {"reality-opts"});
-                    if (reality.IsMap()) {
-                        bean->stream->reality_pbk = Node2QString(reality["public-key"]);
-                        bean->stream->reality_sid = Node2QString(reality["short-id"]);
-                    }
-                } else if (type == "vmess") {
-                    needFix = true;
-                    auto bean = ent->VMessBean();
-                    bean->uuid = Node2QString(proxy["uuid"]);
-                    bean->aid = Node2Int(proxy["alterId"]);
-                    bean->security = Node2QString(proxy["cipher"], bean->security);
-                    bean->stream->network = Node2QString(proxy["network"], "tcp").replace("h2", "http");
-                    bean->stream->sni = FIRST_OR_SECOND(Node2QString(proxy["sni"]), Node2QString(proxy["servername"]));
-                    bean->stream->alpn = Node2QStringList(proxy["alpn"]).join(",");
-                    if (Node2Bool(proxy["tls"])) bean->stream->security = "tls";
-                    if (Node2Bool(proxy["skip-cert-verify"])) bean->stream->allow_insecure = true;
-                    bean->stream->utlsFingerprint = Node2QString(proxy["client-fingerprint"]);
-                    bean->stream->utlsFingerprint = Node2QString(proxy["client-fingerprint"]);
-                    if (bean->stream->utlsFingerprint.isEmpty()) {
-                        bean->stream->utlsFingerprint = NekoGui::dataStore->utlsFingerprint;
-                    }
-
-                    // sing-mux
-                    auto smux = NodeChild(proxy, {"smux"});
-                    if (Node2Bool(smux["enabled"])) bean->stream->multiplex_status = 1;
-
-                    // meta packet encoding
-                    if (Node2Bool(proxy["xudp"])) bean->stream->packet_encoding = "xudp";
-                    if (Node2Bool(proxy["packet-addr"])) bean->stream->packet_encoding = "packetaddr";
-
-                    // opts
-                    auto ws = NodeChild(proxy, {"ws-opts", "ws-opt"});
-                    if (ws.IsMap()) {
-                        auto headers = ws["headers"];
-                        for (auto header: headers) {
-                            if (Node2QString(header.first).toLower() == "host") {
-                                bean->stream->host = Node2QString(header.second);
-                            }
-                        }
-                        bean->stream->path = Node2QString(ws["path"]);
-                        bean->stream->ws_early_data_length = Node2Int(ws["max-early-data"]);
-                        bean->stream->ws_early_data_name = Node2QString(ws["early-data-header-name"]);
-                        // for Xray
-                        if (Node2QString(ws["early-data-header-name"]) == "Sec-WebSocket-Protocol") {
-                            bean->stream->path += "?ed=" + Node2QString(ws["max-early-data"]);
-                        }
-                    }
-
-                    auto grpc = NodeChild(proxy, {"grpc-opts", "grpc-opt"});
-                    if (grpc.IsMap()) {
-                        bean->stream->path = Node2QString(grpc["grpc-service-name"]);
-                    }
-
-                    auto h2 = NodeChild(proxy, {"h2-opts", "h2-opt"});
-                    if (h2.IsMap()) {
-                        auto hosts = h2["host"];
-                        for (auto host: hosts) {
-                            bean->stream->host = Node2QString(host);
-                            break;
-                        }
-                        bean->stream->path = Node2QString(h2["path"]);
-                    }
-
-                    auto tcp_http = NodeChild(proxy, {"http-opts", "http-opt"});
-                    if (tcp_http.IsMap()) {
-                        bean->stream->network = "tcp";
-                        bean->stream->header_type = "http";
-                        auto headers = tcp_http["headers"];
-                        for (auto header: headers) {
-                            if (Node2QString(header.first).toLower() == "host") {
-                                bean->stream->host = Node2QString(header.second[0]);
-                            }
-                            break;
-                        }
-                        auto paths = tcp_http["path"];
-                        for (auto path: paths) {
-                            bean->stream->path = Node2QString(path);
-                            break;
-                        }
-                    }
-                } else if (type == "hysteria2") {
-                    auto bean = ent->QUICBean();
-
-                    bean->hopPort = Node2QString(proxy["ports"]);
-
-                    bean->allowInsecure = Node2Bool(proxy["skip-cert-verify"]);
-                    bean->caText = Node2QString(proxy["ca-str"]);
-                    bean->sni = Node2QString(proxy["sni"]);
-
-                    bean->obfsPassword = Node2QString(proxy["obfs-password"]);
-                    bean->password = Node2QString(proxy["password"]);
-
-                    bean->uploadMbps = Node2QString(proxy["up"]).split(" ")[0].toInt();
-                    bean->downloadMbps = Node2QString(proxy["down"]).split(" ")[0].toInt();
-                } else if (type == "tuic") {
-                    auto bean = ent->QUICBean();
-
-                    bean->uuid = Node2QString(proxy["uuid"]);
-                    bean->password = Node2QString(proxy["password"]);
-
-                    if (Node2Int(proxy["heartbeat-interval"]) != 0) {
-                        bean->heartbeat = Int2String(Node2Int(proxy["heartbeat-interval"])) + "ms";
-                    }
-
-                    bean->udpRelayMode = Node2QString(proxy["udp-relay-mode"], bean->udpRelayMode);
-                    bean->congestionControl = Node2QString(proxy["congestion-controller"], bean->congestionControl);
-
-                    bean->disableSni = Node2Bool(proxy["disable-sni"]);
-                    bean->zeroRttHandshake = Node2Bool(proxy["reduce-rtt"]);
-                    bean->allowInsecure = Node2Bool(proxy["skip-cert-verify"]);
-                    bean->alpn = Node2QStringList(proxy["alpn"]).join(",");
-                    bean->caText = Node2QString(proxy["ca-str"]);
-                    bean->sni = Node2QString(proxy["sni"]);
-
-                    if (Node2Bool(proxy["udp-over-stream"])) bean->uos = true;
-
-                    if (!Node2QString(proxy["ip"]).isEmpty()) {
-                        if (bean->sni.isEmpty()) bean->sni = bean->serverAddress;
-                        bean->serverAddress = Node2QString(proxy["ip"]);
-                    }
-                } else {
-                    continue;
-                }
-
-                if (needFix) RawUpdater_FixEnt(ent);
-                NekoGui::profileManager->AddProfile(ent, gid_add_to);
-                updated_order += ent;
+                processClashProxy(proxy, type);
             }
         } catch (const YAML::Exception &ex) {
             runOnUiThread([=] {
@@ -556,67 +592,72 @@ namespace NekoGui_sub {
         // 解析并添加 profile
         rawUpdater->update(content);
 
-        if (group != nullptr) {
-            out_all = group->Profiles();
-
-            QString change_text;
-
-            if (NekoGui::dataStore->sub_clear) {
-                // all is new profile
-                for (const auto &ent: out_all) {
-                    change_text += "[+] " + ent->bean->DisplayTypeAndName() + "\n";
-                }
-            } else {
-                // find and delete not updated profile by ProfileFilter
-                NekoGui::ProfileFilter::OnlyInSrc_ByPointer(out_all, in, out);
-                NekoGui::ProfileFilter::OnlyInSrc(in, out, only_in);
-                NekoGui::ProfileFilter::OnlyInSrc(out, in, only_out);
-                NekoGui::ProfileFilter::Common(in, out, update_keep, update_del, false);
-
-                QString notice_added;
-                QString notice_deleted;
-                for (const auto &ent: only_out) {
-                    notice_added += "[+] " + ent->bean->DisplayTypeAndName() + "\n";
-                }
-                for (const auto &ent: only_in) {
-                    notice_deleted += "[-] " + ent->bean->DisplayTypeAndName() + "\n";
-                }
-
-                // sort according to order in remote
-                group->order = {};
-                for (const auto &ent: rawUpdater->updated_order) {
-                    auto deleted_index = update_del.indexOf(ent);
-                    if (deleted_index > 0) {
-                        if (deleted_index >= update_keep.count()) continue; // should not happen
-                        auto ent2 = update_keep[deleted_index];
-                        group->order.append(ent2->id);
-                    } else {
-                        group->order.append(ent->id);
-                    }
-                }
-                group->Save();
-
-                // cleanup
-                for (const auto &ent: out_all) {
-                    if (!group->order.contains(ent->id)) {
-                        NekoGui::profileManager->DeleteProfile(ent->id);
-                    }
-                }
-
-                change_text = "\n" + QObject::tr("Added %1 profiles:\n%2\nDeleted %3 Profiles:\n%4")
-                                         .arg(only_out.length())
-                                         .arg(notice_added)
-                                         .arg(only_in.length())
-                                         .arg(notice_deleted);
-                if (only_out.length() + only_in.length() == 0) change_text = QObject::tr("Nothing");
-            }
-
-            MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
-            MW_dialog_message("SubUpdater", "finish-dingyue");
-        } else {
+        // Early exit if no group
+        if (group == nullptr) {
             NekoGui::dataStore->imported_count = rawUpdater->updated_order.count();
             MW_dialog_message("SubUpdater", "finish");
+            return;
         }
+
+        // Process group updates
+        out_all = group->Profiles();
+        QString change_text;
+
+        // Handle sub_clear case - early exit
+        if (NekoGui::dataStore->sub_clear) {
+            for (const auto &ent: out_all) {
+                change_text += "[+] " + ent->bean->DisplayTypeAndName() + "\n";
+            }
+            MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
+            MW_dialog_message("SubUpdater", "finish-dingyue");
+            return;
+        }
+
+        // Find and delete not updated profile by ProfileFilter
+        NekoGui::ProfileFilter::OnlyInSrc_ByPointer(out_all, in, out);
+        NekoGui::ProfileFilter::OnlyInSrc(in, out, only_in);
+        NekoGui::ProfileFilter::OnlyInSrc(out, in, only_out);
+        NekoGui::ProfileFilter::Common(in, out, update_keep, update_del, false);
+
+        QString notice_added;
+        QString notice_deleted;
+        for (const auto &ent: only_out) {
+            notice_added += "[+] " + ent->bean->DisplayTypeAndName() + "\n";
+        }
+        for (const auto &ent: only_in) {
+            notice_deleted += "[-] " + ent->bean->DisplayTypeAndName() + "\n";
+        }
+
+        // Sort according to order in remote
+        group->order = {};
+        for (const auto &ent: rawUpdater->updated_order) {
+            auto deleted_index = update_del.indexOf(ent);
+            if (deleted_index > 0) {
+                if (deleted_index >= update_keep.count()) continue; // should not happen
+                auto ent2 = update_keep[deleted_index];
+                group->order.append(ent2->id);
+            } else {
+                group->order.append(ent->id);
+            }
+        }
+        group->Save();
+
+        // Cleanup
+        for (const auto &ent: out_all) {
+            if (!group->order.contains(ent->id)) {
+                NekoGui::profileManager->DeleteProfile(ent->id);
+            }
+        }
+
+        change_text = "\n" + QObject::tr("Added %1 profiles:\n%2\nDeleted %3 Profiles:\n%4")
+                                 .arg(only_out.length())
+                                 .arg(notice_added)
+                                 .arg(only_in.length())
+                                 .arg(notice_deleted);
+        if (only_out.length() + only_in.length() == 0) change_text = QObject::tr("Nothing");
+
+        MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
+        MW_dialog_message("SubUpdater", "finish-dingyue");
     }
 } // namespace NekoGui_sub
 
