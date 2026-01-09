@@ -27,6 +27,7 @@ namespace NekoGui_sub {
         std::shared_ptr<NekoGui::ProxyEntity> parseTUICLink(const QString &str, bool &needFix);
 
         // Clash parsing helpers
+#ifndef NKR_NO_YAML
         void processClashProxy(const YAML::Node &proxy, const QString &type);
         void processClashShadowsocks(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent);
         void processClashSocksHttp(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent, const QString &type);
@@ -35,6 +36,7 @@ namespace NekoGui_sub {
         void processClashHysteria2(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent);
         void processClashTUIC(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent);
         void processClashStreamOpts(const YAML::Node &proxy, NekoGui_fmt::V2RayStreamSettings *stream);
+#endif
     };
 
     class GroupUpdater : public QObject {

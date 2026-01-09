@@ -1,3 +1,4 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "ui/Icon.hpp"

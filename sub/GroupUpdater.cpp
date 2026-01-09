@@ -227,6 +227,7 @@ namespace NekoGui_sub {
 
 #endif
 
+#ifndef NKR_NO_YAML
     // Clash parsing helper functions
     void RawUpdater::processClashStreamOpts(const YAML::Node &proxy, NekoGui_fmt::V2rayStreamSettings *stream) {
         // WebSocket opts
@@ -477,6 +478,7 @@ namespace NekoGui_sub {
         NekoGui::profileManager->AddProfile(ent, gid_add_to);
         updated_order += ent;
     }
+#endif
 
     // https://github.com/Dreamacro/clash/wiki/configuration
     void RawUpdater::updateClash(const QString &str) {

@@ -56,6 +56,15 @@ private:
 
     void typeSelected(const QString &newType);
 
+    // typeSelected helper functions
+    ProfileEditor* createEditorForType(const QString &type, QString &customType);
+    void setupStreamSettings();
+    void setupCustomVisibility();
+    void setupBeanWidget();
+    void setupEditorCallbacks();
+    void setupCommonFields();
+    void setupNekoBoxVisibility();
+
     bool onEnd();
 
     void editor_cache_updated_impl();

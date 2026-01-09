@@ -386,12 +386,59 @@ namespace NekoGui {
 
     // SingBox
 
-    void BuildConfigSingBox(const std::shared_ptr<BuildConfigStatus> &status) {
-        // Log
-        status->result->coreConfig["log"] = QJsonObject{{"level", dataStore->log_level}};
+    QJsonObject BuildConfigSingBox_MakeRule(const QStringList &list, bool isIP) {
+        QJsonObject rule;
+        QJsonArray ip_cidr;
+        QJsonArray geoip;
+        QJsonArray domain_keyword;
+        QJsonArray domain_subdomain;
+        QJsonArray domain_regexp;
+        QJsonArray domain_full;
+        QJsonArray geosite;
+        
+        for (auto item: list) {
+            if (isIP) {
+                if (item.startsWith("geoip:")) {
+                    geoip += item.replace("geoip:", "");
+                } else {
+                    ip_cidr += item;
+                }
+            } else {
+                // https://www.v2fly.org/config/dns.html#dnsobject
+                if (item.startsWith("geosite:")) {
+                    geosite += item.replace("geosite:", "");
+                } else if (item.startsWith("full:")) {
+                    domain_full += item.replace("full:", "").toLower();
+                } else if (item.startsWith("domain:")) {
+                    domain_subdomain += item.replace("domain:", "").toLower();
+                } else if (item.startsWith("regexp:")) {
+                    domain_regexp += item.replace("regexp:", "").toLower();
+                } else if (item.startsWith("keyword:")) {
+                    domain_keyword += item.replace("keyword:", "").toLower();
+                } else {
+                    domain_subdomain += item.toLower();
+                }
+            }
+        }
+        
+        if (isIP) {
+            if (ip_cidr.isEmpty() && geoip.isEmpty()) return rule;
+            rule["ip_cidr"] = ip_cidr;
+            rule["geoip"] = geoip;
+        } else {
+            if (domain_keyword.isEmpty() && domain_subdomain.isEmpty() && domain_regexp.isEmpty() && domain_full.isEmpty() && geosite.isEmpty()) {
+                return rule;
+            }
+            rule["domain"] = domain_full;
+            rule["domain_suffix"] = domain_subdomain; // v2ray Subdomain => sing-box suffix
+            rule["domain_keyword"] = domain_keyword;
+            rule["domain_regex"] = domain_regexp;
+            rule["geosite"] = geosite;
+        }
+        return rule;
+    }
 
-        // Inbounds
-
+    void BuildConfigSingBox_Inbounds(const std::shared_ptr<BuildConfigStatus> &status) {
         // mixed-in
         if (IsValidPort(dataStore->inbound_socks_port) && !status->forTest) {
             QJsonObject inboundObj;
@@ -436,10 +483,11 @@ namespace NekoGui {
             status->inbounds += inboundObj;
         }
 
-        // Outbounds
-        auto tagProxy = BuildChain(0, status);
-        if (!status->result->error.isEmpty()) return;
+        // custom inbound
+        if (!status->forTest) QJSONARRAY_ADD(status->inbounds, QString2QJsonObject(dataStore->custom_inbound)["inbounds"].toArray())
+    }
 
+    void BuildConfigSingBox_Outbounds(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy) {
         // direct & bypass & block
         status->outbounds += QJsonObject{
             {"type", "direct"},
@@ -459,79 +507,15 @@ namespace NekoGui {
                 {"tag", "dns-out"},
             };
         }
+    }
 
-        // custom inbound
-        if (!status->forTest) QJSONARRAY_ADD(status->inbounds, QString2QJsonObject(dataStore->custom_inbound)["inbounds"].toArray())
-
-        status->result->coreConfig.insert("inbounds", status->inbounds);
-        status->result->coreConfig.insert("outbounds", status->outbounds);
-
-        // user rule
-        if (!status->forTest) {
-            DOMAIN_USER_RULE
-            IP_USER_RULE
-        }
-
-        // sing-box common rule object
-        auto make_rule = [&](const QStringList &list, bool isIP = false) {
-            QJsonObject rule;
-            //
-            QJsonArray ip_cidr;
-            QJsonArray geoip;
-            //
-            QJsonArray domain_keyword;
-            QJsonArray domain_subdomain;
-            QJsonArray domain_regexp;
-            QJsonArray domain_full;
-            QJsonArray geosite;
-            for (auto item: list) {
-                if (isIP) {
-                    if (item.startsWith("geoip:")) {
-                        geoip += item.replace("geoip:", "");
-                    } else {
-                        ip_cidr += item;
-                    }
-                } else {
-                    // https://www.v2fly.org/config/dns.html#dnsobject
-                    if (item.startsWith("geosite:")) {
-                        geosite += item.replace("geosite:", "");
-                    } else if (item.startsWith("full:")) {
-                        domain_full += item.replace("full:", "").toLower();
-                    } else if (item.startsWith("domain:")) {
-                        domain_subdomain += item.replace("domain:", "").toLower();
-                    } else if (item.startsWith("regexp:")) {
-                        domain_regexp += item.replace("regexp:", "").toLower();
-                    } else if (item.startsWith("keyword:")) {
-                        domain_keyword += item.replace("keyword:", "").toLower();
-                    } else {
-                        domain_subdomain += item.toLower();
-                    }
-                }
-            }
-            if (isIP) {
-                if (ip_cidr.isEmpty() && geoip.isEmpty()) return rule;
-                rule["ip_cidr"] = ip_cidr;
-                rule["geoip"] = geoip;
-            } else {
-                if (domain_keyword.isEmpty() && domain_subdomain.isEmpty() && domain_regexp.isEmpty() && domain_full.isEmpty() && geosite.isEmpty()) {
-                    return rule;
-                }
-                rule["domain"] = domain_full;
-                rule["domain_suffix"] = domain_subdomain; // v2ray Subdomain => sing-box suffix
-                rule["domain_keyword"] = domain_keyword;
-                rule["domain_regex"] = domain_regexp;
-                rule["geosite"] = geosite;
-            }
-            return rule;
-        };
-
-        // final add DNS
+    void BuildConfigSingBox_DNS(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy) {
         QJsonObject dns;
         QJsonArray dnsServers;
         QJsonArray dnsRules;
 
         // Remote
-        if (!status->forTest)
+        if (!status->forTest) {
             dnsServers += QJsonObject{
                 {"tag", "dns-remote"},
                 {"address_resolver", "dns-local"},
@@ -539,6 +523,7 @@ namespace NekoGui {
                 {"address", dataStore->routing->remote_dns},
                 {"detour", tagProxy},
             };
+        }
 
         // Direct
         QJsonObject directObj{
@@ -559,11 +544,12 @@ namespace NekoGui {
         });
 
         // block
-        if (!status->forTest)
+        if (!status->forTest) {
             dnsServers += QJsonObject{
                 {"tag", "dns-block"},
                 {"address", "rcode://success"},
             };
+        }
 
         // Fakedns
         if (dataStore->fake_dns && dataStore->vpn_internal_tun && dataStore->spmode_vpn && !status->forTest) {
@@ -587,7 +573,7 @@ namespace NekoGui {
 
         // sing-box dns rule object
         auto add_rule_dns = [&](const QStringList &list, const QString &server) {
-            auto rule = make_rule(list, false);
+            auto rule = BuildConfigSingBox_MakeRule(list, false);
             if (rule.isEmpty()) return;
             rule["server"] = server;
             dnsRules += rule;
@@ -623,9 +609,9 @@ namespace NekoGui {
             dns = QString2QJsonObject(dataStore->routing->dns_object);
         }
         status->result->coreConfig.insert("dns", dns);
+    }
 
-        // Routing
-
+    void BuildConfigSingBox_Routing(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy) {
         // dns hijack
         if (!status->forTest) {
             status->routingRules += QJsonObject{
@@ -636,7 +622,7 @@ namespace NekoGui {
 
         // sing-box routing rule object
         auto add_rule_route = [&](const QStringList &list, bool isIP, const QString &out) {
-            auto rule = make_rule(list, isIP);
+            auto rule = BuildConfigSingBox_MakeRule(list, isIP);
             if (rule.isEmpty()) return;
             rule["outbound"] = out;
             status->routingRules += rule;
@@ -726,8 +712,9 @@ namespace NekoGui {
             routeObj.remove("auto_detect_interface");
         }
         status->result->coreConfig.insert("route", routeObj);
+    }
 
-        // experimental
+    void BuildConfigSingBox_Experimental(const std::shared_ptr<BuildConfigStatus> &status) {
         QJsonObject experimentalObj;
 
         if (!status->forTest && dataStore->core_box_clash_api > 0) {
@@ -740,6 +727,40 @@ namespace NekoGui {
         }
 
         if (!experimentalObj.isEmpty()) status->result->coreConfig.insert("experimental", experimentalObj);
+    }
+
+    void BuildConfigSingBox(const std::shared_ptr<BuildConfigStatus> &status) {
+        // Log
+        status->result->coreConfig["log"] = QJsonObject{{"level", dataStore->log_level}};
+
+        // Build outbound chain first (needed for DNS and routing)
+        auto tagProxy = BuildChain(0, status);
+        if (!status->result->error.isEmpty()) return;
+
+        // Build inbounds
+        BuildConfigSingBox_Inbounds(status);
+
+        // Build outbounds
+        BuildConfigSingBox_Outbounds(status, tagProxy);
+
+        // Insert inbounds and outbounds
+        status->result->coreConfig.insert("inbounds", status->inbounds);
+        status->result->coreConfig.insert("outbounds", status->outbounds);
+
+        // user rule
+        if (!status->forTest) {
+            DOMAIN_USER_RULE
+            IP_USER_RULE
+        }
+
+        // Build DNS
+        BuildConfigSingBox_DNS(status, tagProxy);
+
+        // Build Routing
+        BuildConfigSingBox_Routing(status, tagProxy);
+
+        // Build Experimental
+        BuildConfigSingBox_Experimental(status);
     }
 
     QString WriteVPNSingBoxConfig() {

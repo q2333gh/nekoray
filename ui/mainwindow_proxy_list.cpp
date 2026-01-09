@@ -1,9 +1,12 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "db/ProxyEntity.hpp"
 #include "ui/edit/dialog_edit_profile.h"
 
 #include <QTableWidgetItem>
+#include <QHeaderView>
+#include <QVBoxLayout>
 
 // Group tab manage
 

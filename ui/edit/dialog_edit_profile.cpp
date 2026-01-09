@@ -142,100 +142,88 @@ DialogEditProfile::~DialogEditProfile() {
     delete ui;
 }
 
-void DialogEditProfile::typeSelected(const QString &newType) {
-    QString customType;
-    type = newType;
-    bool validType = true;
-
+ProfileEditor* DialogEditProfile::createEditorForType(const QString &type, QString &customType) {
     if (type == "socks" || type == "http") {
         auto _innerWidget = new EditSocksHttp(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "shadowsocks") {
+        return _innerWidget;
+    }
+    if (type == "shadowsocks") {
         auto _innerWidget = new EditShadowSocks(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "chain") {
+        return _innerWidget;
+    }
+    if (type == "chain") {
         auto _innerWidget = new EditChain(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "vmess") {
+        return _innerWidget;
+    }
+    if (type == "vmess") {
         auto _innerWidget = new EditVMess(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "trojan" || type == "vless") {
+        return _innerWidget;
+    }
+    if (type == "trojan" || type == "vless") {
         auto _innerWidget = new EditTrojanVLESS(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "naive") {
+        return _innerWidget;
+    }
+    if (type == "naive") {
         auto _innerWidget = new EditNaive(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "hysteria2" || type == "tuic") {
+        return _innerWidget;
+    }
+    if (type == "hysteria2" || type == "tuic") {
         auto _innerWidget = new EditQUIC(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
-    } else if (type == "custom" || type == "internal" || type == "internal-full") {
+        return _innerWidget;
+    }
+    if (type == "custom" || type == "internal" || type == "internal-full") {
         auto _innerWidget = new EditCustom(this);
         innerWidget = _innerWidget;
-        innerEditor = _innerWidget;
         customType = newEnt ? type : ent->CustomBean()->core;
         if (customType != "custom") _innerWidget->preset_core = customType;
-        type = "custom";
-    } else {
-        validType = false;
+        return _innerWidget;
     }
+    return nullptr;
+}
 
-    if (!validType) {
-        MessageBoxWarning(newType, "Wrong type");
+void DialogEditProfile::setupStreamSettings() {
+    auto stream = GetStreamSettings(ent->bean.get());
+    if (stream == nullptr) {
+        ui->right_all_w->setVisible(false);
         return;
     }
 
+    ui->right_all_w->setVisible(true);
+    ui->network->setCurrentText(stream->network);
+    ui->security->setCurrentText(stream->security);
+    ui->packet_encoding->setCurrentText(stream->packet_encoding);
+    ui->path->setText(stream->path);
+    ui->host->setText(stream->host);
+    ui->sni->setText(stream->sni);
+    ui->alpn->setText(stream->alpn);
     if (newEnt) {
-        this->ent = NekoGui::ProfileManager::NewProxyEntity(type);
-        this->ent->gid = groupId;
-    }
-
-    // hide some widget
-    auto showAddressPort = type != "chain" && customType != "internal" && customType != "internal-full";
-    ui->address->setVisible(showAddressPort);
-    ui->address_l->setVisible(showAddressPort);
-    ui->port->setVisible(showAddressPort);
-    ui->port_l->setVisible(showAddressPort);
-
-    // 右边 stream
-    auto stream = GetStreamSettings(ent->bean.get());
-    if (stream != nullptr) {
-        ui->right_all_w->setVisible(true);
-        ui->network->setCurrentText(stream->network);
-        ui->security->setCurrentText(stream->security);
-        ui->packet_encoding->setCurrentText(stream->packet_encoding);
-        ui->path->setText(stream->path);
-        ui->host->setText(stream->host);
-        ui->sni->setText(stream->sni);
-        ui->alpn->setText(stream->alpn);
-        if (newEnt) {
-            ui->utlsFingerprint->setCurrentText(NekoGui::dataStore->utlsFingerprint);
-        } else {
-            ui->utlsFingerprint->setCurrentText(stream->utlsFingerprint);
-        }
-        ui->insecure->setChecked(stream->allow_insecure);
-        ui->header_type->setCurrentText(stream->header_type);
-        ui->ws_early_data_name->setText(stream->ws_early_data_name);
-        ui->ws_early_data_length->setText(Int2String(stream->ws_early_data_length));
-        ui->reality_pbk->setText(stream->reality_pbk);
-        ui->reality_sid->setText(stream->reality_sid);
-        ui->multiplex->setCurrentIndex(stream->multiplex_status);
-        CACHE.certificate = stream->certificate;
+        ui->utlsFingerprint->setCurrentText(NekoGui::dataStore->utlsFingerprint);
     } else {
-        ui->right_all_w->setVisible(false);
+        ui->utlsFingerprint->setCurrentText(stream->utlsFingerprint);
     }
+    ui->insecure->setChecked(stream->allow_insecure);
+    ui->header_type->setCurrentText(stream->header_type);
+    ui->ws_early_data_name->setText(stream->ws_early_data_name);
+    ui->ws_early_data_length->setText(Int2String(stream->ws_early_data_length));
+    ui->reality_pbk->setText(stream->reality_pbk);
+    ui->reality_sid->setText(stream->reality_sid);
+    ui->multiplex->setCurrentIndex(stream->multiplex_status);
+    CACHE.certificate = stream->certificate;
+}
 
-    // left: custom
-    CACHE.custom_config = ent->bean->custom_config;
-    CACHE.custom_outbound = ent->bean->custom_outbound;
+void DialogEditProfile::setupCustomVisibility() {
     bool show_custom_config = true;
     bool show_custom_outbound = true;
+    QString customType = (type == "custom" || type == "internal" || type == "internal-full") 
+        ? (newEnt ? type : ent->CustomBean()->core) : "";
+
     if (type == "chain") {
         show_custom_outbound = false;
     } else if (type == "custom") {
@@ -248,33 +236,35 @@ void DialogEditProfile::typeSelected(const QString &newType) {
     }
     ui->custom_box->setVisible(show_custom_outbound);
     ui->custom_global_box->setVisible(show_custom_config);
+}
 
-    // 左边 bean
+void DialogEditProfile::setupBeanWidget() {
     auto old = ui->bean->layout()->itemAt(0)->widget();
     ui->bean->layout()->removeWidget(old);
     innerWidget->layout()->setContentsMargins(0, 0, 0, 0);
     ui->bean->layout()->addWidget(innerWidget);
     ui->bean->setTitle(ent->bean->DisplayType());
     delete old;
+}
 
-    // 左边 bean inner editor
+void DialogEditProfile::setupEditorCallbacks() {
     innerEditor->get_edit_dialog = [&]() { return (QWidget *) this; };
     innerEditor->get_edit_text_name = [&]() { return ui->name->text(); };
     innerEditor->get_edit_text_serverAddress = [&]() { return ui->address->text(); };
     innerEditor->get_edit_text_serverPort = [&]() { return ui->port->text(); };
     innerEditor->editor_cache_updated = [=] { editor_cache_updated_impl(); };
     innerEditor->onStart(ent);
+}
 
-    // 左边 common
+void DialogEditProfile::setupCommonFields() {
     ui->name->setText(ent->bean->name);
     ui->address->setText(ent->bean->serverAddress);
     ui->port->setText(Int2String(ent->bean->serverPort));
     ui->port->setValidator(QRegExpValidator_Number);
-
-    // 星号
     ADD_ASTERISK(this)
+}
 
-    // 设置 for NekoBox
+void DialogEditProfile::setupNekoBoxVisibility() {
     if (type == "vmess" || type == "vless") {
         ui->packet_encoding->setVisible(true);
         ui->packet_encoding_l->setVisible(true);
@@ -282,6 +272,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         ui->packet_encoding->setVisible(false);
         ui->packet_encoding_l->setVisible(false);
     }
+    
     if (type == "vmess" || type == "vless" || type == "trojan") {
         ui->network_l->setVisible(true);
         ui->network->setVisible(true);
@@ -291,6 +282,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         ui->network->setVisible(false);
         ui->network_box->setVisible(false);
     }
+    
     if (type == "vmess" || type == "vless" || type == "trojan" || type == "http") {
         ui->security->setVisible(true);
         ui->security_l->setVisible(true);
@@ -298,6 +290,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         ui->security->setVisible(false);
         ui->security_l->setVisible(false);
     }
+    
     if (type == "vmess" || type == "vless" || type == "trojan" || type == "shadowsocks") {
         ui->multiplex->setVisible(true);
         ui->multiplex_l->setVisible(true);
@@ -318,6 +311,56 @@ void DialogEditProfile::typeSelected(const QString &newType) {
     if (rightNoBox && !ui->right_all_w->isHidden()) {
         ui->right_all_w->setVisible(false);
     }
+}
+
+void DialogEditProfile::typeSelected(const QString &newType) {
+    QString customType;
+    type = newType;
+
+    // Create editor for type
+    innerEditor = createEditorForType(type, customType);
+    if (innerEditor == nullptr) {
+        MessageBoxWarning(newType, "Wrong type");
+        return;
+    }
+
+    // Handle custom type
+    if (type == "custom" || type == "internal" || type == "internal-full") {
+        type = "custom";
+    }
+
+    // Create new entity if needed
+    if (newEnt) {
+        this->ent = NekoGui::ProfileManager::NewProxyEntity(type);
+        this->ent->gid = groupId;
+    }
+
+    // Setup address/port visibility
+    auto showAddressPort = type != "chain" && customType != "internal" && customType != "internal-full";
+    ui->address->setVisible(showAddressPort);
+    ui->address_l->setVisible(showAddressPort);
+    ui->port->setVisible(showAddressPort);
+    ui->port_l->setVisible(showAddressPort);
+
+    // Setup stream settings
+    setupStreamSettings();
+
+    // Setup custom visibility
+    CACHE.custom_config = ent->bean->custom_config;
+    CACHE.custom_outbound = ent->bean->custom_outbound;
+    setupCustomVisibility();
+
+    // Setup bean widget
+    setupBeanWidget();
+
+    // Setup editor callbacks
+    setupEditorCallbacks();
+
+    // Setup common fields
+    setupCommonFields();
+
+    // Setup NekoBox visibility
+    setupNekoBoxVisibility();
 
     editor_cache_updated_impl();
     ADJUST_SIZE

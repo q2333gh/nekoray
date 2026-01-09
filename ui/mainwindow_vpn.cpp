@@ -1,6 +1,8 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "db/ConfigBuilder.hpp"
+#include "3rdparty/qv2ray/v2/components/proxy/QvProxyConfigurator.hpp"
 
 #ifdef Q_OS_WIN
 #include "3rdparty/WinCommander.hpp"
@@ -11,6 +13,7 @@
 #include <unistd.h>
 #endif
 
+#include <QApplication>
 #include <QMessageBox>
 #include <QProcess>
 

@@ -48,6 +48,14 @@ namespace NekoGui {
 
     void BuildConfigSingBox(const std::shared_ptr<BuildConfigStatus> &status);
 
+    // BuildConfigSingBox helper functions
+    void BuildConfigSingBox_Inbounds(const std::shared_ptr<BuildConfigStatus> &status);
+    void BuildConfigSingBox_Outbounds(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy);
+    void BuildConfigSingBox_DNS(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy);
+    void BuildConfigSingBox_Routing(const std::shared_ptr<BuildConfigStatus> &status, const QString &tagProxy);
+    void BuildConfigSingBox_Experimental(const std::shared_ptr<BuildConfigStatus> &status);
+    QJsonObject BuildConfigSingBox_MakeRule(const QStringList &list, bool isIP);
+
     QString BuildChain(int chainId, const std::shared_ptr<BuildConfigStatus> &status);
 
     QString BuildChainInternal(int chainId, const QList<std::shared_ptr<ProxyEntity>> &ents,

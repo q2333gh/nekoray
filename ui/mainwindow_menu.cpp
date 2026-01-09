@@ -1,3 +1,4 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "ui/edit/dialog_edit_profile.h"
@@ -11,11 +12,14 @@
 #include "sub/GroupUpdater.hpp"
 #include "db/ProfileFilter.hpp"
 
+#include <QApplication>
 #include <QClipboard>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QFileInfo>
+#include <QLabel>
+#include <QVBoxLayout>
 
 #ifndef NKR_NO_ZXING
 #include "3rdparty/ZxingQtReader.hpp"

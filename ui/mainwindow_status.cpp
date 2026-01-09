@@ -1,7 +1,10 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "ui/Icon.hpp"
+#include "db/Database.hpp"
 
+#include <QApplication>
 #include <QTime>
 
 void MainWindow::refresh_status(const QString &traffic_update) {
