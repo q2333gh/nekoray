@@ -188,6 +188,14 @@ set(PROJECT_SOURCES
         ui/mainwindow.cpp
         ui/mainwindow.h
         ui/mainwindow.ui
+        ui/mainwindow_dialog.cpp
+        ui/mainwindow_menu.cpp
+        ui/mainwindow_proxy_list.cpp
+        ui/mainwindow_status.cpp
+        ui/mainwindow_log.cpp
+        ui/mainwindow_connection.cpp
+        ui/mainwindow_hotkey.cpp
+        ui/mainwindow_vpn.cpp
 
         ui/edit/dialog_edit_profile.h
         ui/edit/dialog_edit_profile.cpp

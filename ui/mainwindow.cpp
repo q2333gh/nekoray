@@ -47,6 +47,9 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QDateTime>
+#include <QTextStream>
+#include <QIODevice>
 
 void UI_InitMainWindow() {
     mainwindow = new MainWindow;
@@ -388,7 +391,40 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     if (NekoGui::dataStore->core_port <= 0) NekoGui::dataStore->core_port = 19810;
 
     auto core_path = QApplication::applicationDirPath() + "/";
+#ifdef Q_OS_WIN
+    core_path += "nekobox_core.exe";
+#else
     core_path += "nekobox_core";
+#endif
+
+    // Check if core executable exists
+    QFileInfo coreFileInfo(core_path);
+    if (!coreFileInfo.exists() || !coreFileInfo.isFile()) {
+        // Write error log to file
+        QString logDir = QDir::currentPath();
+        QString logPath = logDir + "/core_not_found.log";
+        QFile logFile(logPath);
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&logFile);
+            out << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n";
+            out << "ERROR: Core executable not found!\n";
+            out << "Expected path: " << core_path << "\n";
+            out << "Application directory: " << QApplication::applicationDirPath() << "\n";
+            out << "Current working directory: " << QDir::currentPath() << "\n";
+            out << "\n";
+#ifdef Q_OS_WIN
+            out << "Please ensure nekobox_core.exe is present in the application directory.\n";
+#else
+            out << "Please ensure nekobox_core is present in the application directory.\n";
+#endif
+            logFile.close();
+        }
+        // Exit application
+        qCritical() << "Core executable not found:" << core_path;
+        qCritical() << "Error log written to:" << logPath;
+        QApplication::exit(1);
+        return;
+    }
 
     QStringList args;
     args.push_back("nekobox");
@@ -452,177 +488,9 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
-// Group tab manage
+// Group tab manage - moved to mainwindow_proxy_list.cpp
 
-inline int tabIndex2GroupId(int index) {
-    if (NekoGui::profileManager->groupsTabOrder.length() <= index) return -1;
-    return NekoGui::profileManager->groupsTabOrder[index];
-}
-
-inline int groupId2TabIndex(int gid) {
-    for (int key = 0; key < NekoGui::profileManager->groupsTabOrder.count(); key++) {
-        if (NekoGui::profileManager->groupsTabOrder[key] == gid) return key;
-    }
-    return 0;
-}
-
-void MainWindow::on_tabWidget_currentChanged(int index) {
-    if (NekoGui::dataStore->refreshing_group_list) return;
-    if (tabIndex2GroupId(index) == NekoGui::dataStore->current_group) return;
-    show_group(tabIndex2GroupId(index));
-}
-
-void MainWindow::show_group(int gid) {
-    if (NekoGui::dataStore->refreshing_group) return;
-    NekoGui::dataStore->refreshing_group = true;
-
-    auto group = NekoGui::profileManager->GetGroup(gid);
-    if (group == nullptr) {
-        MessageBoxWarning(tr("Error"), QStringLiteral("No such group: %1").arg(gid));
-        NekoGui::dataStore->refreshing_group = false;
-        return;
-    }
-
-    if (NekoGui::dataStore->current_group != gid) {
-        NekoGui::dataStore->current_group = gid;
-        NekoGui::dataStore->Save();
-    }
-    ui->tabWidget->widget(groupId2TabIndex(gid))->layout()->addWidget(ui->proxyListTable);
-
-    // 列宽是否可调
-    if (group->manually_column_width) {
-        for (int i = 0; i <= 4; i++) {
-            ui->proxyListTable->horizontalHeader()->setSectionResizeMode(i, QHeaderView::Interactive);
-            auto size = group->column_width.value(i);
-            if (size <= 0) size = ui->proxyListTable->horizontalHeader()->defaultSectionSize();
-            ui->proxyListTable->horizontalHeader()->resizeSection(i, size);
-        }
-    } else {
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    }
-
-    // show proxies
-    GroupSortAction gsa;
-    gsa.scroll_to_started = true;
-    refresh_proxy_list_impl(-1, gsa);
-
-    NekoGui::dataStore->refreshing_group = false;
-}
-
-// callback
-
-void MainWindow::dialog_message_impl(const QString &sender, const QString &info) {
-    // info
-    if (info.contains("UpdateIcon")) {
-        icon_status = -1;
-        refresh_status();
-    }
-    if (info.contains("UpdateDataStore")) {
-        auto suggestRestartProxy = NekoGui::dataStore->Save();
-        if (info.contains("RouteChanged")) {
-            suggestRestartProxy = true;
-        }
-        if (info.contains("NeedRestart")) {
-            suggestRestartProxy = false;
-        }
-        refresh_proxy_list();
-        if (info.contains("VPNChanged") && NekoGui::dataStore->spmode_vpn) {
-            MessageBoxWarning(tr("Tun Settings changed"), tr("Restart Tun to take effect."));
-        }
-        if (suggestRestartProxy && NekoGui::dataStore->started_id >= 0 &&
-            QMessageBox::question(GetMessageBoxParent(), tr("Confirmation"), tr("Settings changed, restart proxy?")) == QMessageBox::StandardButton::Yes) {
-            neko_start(NekoGui::dataStore->started_id);
-        }
-        refresh_status();
-    }
-    if (info.contains("NeedRestart")) {
-        auto n = QMessageBox::warning(GetMessageBoxParent(), tr("Settings changed"), tr("Restart the program to take effect."), QMessageBox::Yes | QMessageBox::No);
-        if (n == QMessageBox::Yes) {
-            this->exit_reason = 2;
-            on_menu_exit_triggered();
-        }
-    }
-    //
-    if (info == "RestartProgram") {
-        this->exit_reason = 2;
-        on_menu_exit_triggered();
-    } else if (info == "Raise") {
-        ActivateWindow(this);
-    } else if (info == "ClearConnectionList") {
-        refresh_connection_list({});
-    }
-    // sender
-    if (sender == Dialog_DialogEditProfile) {
-        auto msg = info.split(",");
-        if (msg.contains("accept")) {
-            refresh_proxy_list();
-            if (msg.contains("restart")) {
-                if (QMessageBox::question(GetMessageBoxParent(), tr("Confirmation"), tr("Settings changed, restart proxy?")) == QMessageBox::StandardButton::Yes) {
-                    neko_start(NekoGui::dataStore->started_id);
-                }
-            }
-        }
-    } else if (sender == Dialog_DialogManageGroups) {
-        if (info.startsWith("refresh")) {
-            this->refresh_groups();
-        }
-    } else if (sender == "SubUpdater") {
-        if (info.startsWith("finish")) {
-            refresh_proxy_list();
-            if (!info.contains("dingyue")) {
-                show_log_impl(tr("Imported %1 profile(s)").arg(NekoGui::dataStore->imported_count));
-            }
-        } else if (info == "NewGroup") {
-            refresh_groups();
-        }
-    } else if (sender == "ExternalProcess") {
-        if (info == "Crashed") {
-            neko_stop();
-        } else if (info == "CoreCrashed") {
-            neko_stop(true);
-        } else if (info.startsWith("CoreStarted")) {
-            neko_start(info.split(",")[1].toInt());
-        }
-    }
-}
-
-// top bar & tray menu
-
-inline bool dialog_is_using = false;
-
-#define USE_DIALOG(a)                               \
-    if (dialog_is_using) return;                    \
-    dialog_is_using = true;                         \
-    auto dialog = new a(this);                      \
-    connect(dialog, &QDialog::finished, this, [=] { \
-        dialog->deleteLater();                      \
-        dialog_is_using = false;                    \
-    });                                             \
-    dialog->show();
-
-void MainWindow::on_menu_basic_settings_triggered() {
-    USE_DIALOG(DialogBasicSettings)
-}
-
-void MainWindow::on_menu_manage_groups_triggered() {
-    USE_DIALOG(DialogManageGroups)
-}
-
-void MainWindow::on_menu_routing_settings_triggered() {
-    USE_DIALOG(DialogManageRoutes)
-}
-
-void MainWindow::on_menu_vpn_settings_triggered() {
-    USE_DIALOG(DialogVPNSettings)
-}
-
-void MainWindow::on_menu_hotkey_settings_triggered() {
-    USE_DIALOG(DialogHotkey)
-}
+// callback - moved to mainwindow_dialog.cpp
 
 void MainWindow::on_commitDataRequest() {
     qDebug() << "Start of data save";
@@ -709,9 +577,7 @@ void MainWindow::on_menu_exit_triggered() {
     QCoreApplication::quit();
 }
 
-#define neko_set_spmode_FAILED \
-    refresh_status();          \
-    return;
+// VPN and system proxy - moved to mainwindow_vpn.cpp
 
 void MainWindow::neko_set_spmode_system_proxy(bool enable, bool save) {
     if (enable != NekoGui::dataStore->spmode_system_proxy) {
@@ -1485,134 +1351,7 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
     }
 }
 
-// Log
-
-inline void FastAppendTextDocument(const QString &message, QTextDocument *doc) {
-    QTextCursor cursor(doc);
-    cursor.movePosition(QTextCursor::End);
-    cursor.beginEditBlock();
-    cursor.insertBlock();
-    cursor.insertText(message);
-    cursor.endEditBlock();
-}
-
-void MainWindow::show_log_impl(const QString &log) {
-    auto lines = SplitLines(log.trimmed());
-    if (lines.isEmpty()) return;
-
-    QStringList newLines;
-    auto log_ignore = NekoGui::dataStore->log_ignore;
-    for (const auto &line: lines) {
-        bool showThisLine = true;
-        for (const auto &str: log_ignore) {
-            if (line.contains(str)) {
-                showThisLine = false;
-                break;
-            }
-        }
-        if (showThisLine) newLines << line;
-    }
-    if (newLines.isEmpty()) return;
-
-    FastAppendTextDocument(newLines.join("\n"), qvLogDocument);
-    // qvLogDocument->setPlainText(qvLogDocument->toPlainText() + log);
-    // From https://gist.github.com/jemyzhang/7130092
-    auto block = qvLogDocument->begin();
-
-    while (block.isValid()) {
-        if (qvLogDocument->blockCount() > NekoGui::dataStore->max_log_line) {
-            QTextCursor cursor(block);
-            block = block.next();
-            cursor.select(QTextCursor::BlockUnderCursor);
-            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-            cursor.removeSelectedText();
-            continue;
-        }
-        break;
-    }
-}
-
-#define ADD_TO_CURRENT_ROUTE(a, b)                                                                   \
-    NekoGui::dataStore->routing->a = (SplitLines(NekoGui::dataStore->routing->a) << (b)).join("\n"); \
-    NekoGui::dataStore->routing->Save();
-
-void MainWindow::on_masterLogBrowser_customContextMenuRequested(const QPoint &pos) {
-    QMenu *menu = ui->masterLogBrowser->createStandardContextMenu();
-
-    auto sep = new QAction(this);
-    sep->setSeparator(true);
-    menu->addAction(sep);
-
-    auto action_add_ignore = new QAction(this);
-    action_add_ignore->setText(tr("Set ignore keyword"));
-    connect(action_add_ignore, &QAction::triggered, this, [=] {
-        auto list = NekoGui::dataStore->log_ignore;
-        auto newStr = ui->masterLogBrowser->textCursor().selectedText().trimmed();
-        if (!newStr.isEmpty()) list << newStr;
-        bool ok;
-        newStr = QInputDialog::getMultiLineText(GetMessageBoxParent(), tr("Set ignore keyword"), tr("Set the following keywords to ignore?\nSplit by line."), list.join("\n"), &ok);
-        if (ok) {
-            NekoGui::dataStore->log_ignore = SplitLines(newStr);
-            NekoGui::dataStore->Save();
-        }
-    });
-    menu->addAction(action_add_ignore);
-
-    auto action_add_route = new QAction(this);
-    action_add_route->setText(tr("Save as route"));
-    connect(action_add_route, &QAction::triggered, this, [=] {
-        auto newStr = ui->masterLogBrowser->textCursor().selectedText().trimmed();
-        if (newStr.isEmpty()) return;
-        //
-        bool ok;
-        newStr = QInputDialog::getText(GetMessageBoxParent(), tr("Save as route"), tr("Edit"), {}, newStr, &ok).trimmed();
-        if (!ok) return;
-        if (newStr.isEmpty()) return;
-        //
-        auto select = IsIpAddress(newStr) ? 0 : 3;
-        QStringList items = {"proxyIP", "bypassIP", "blockIP", "proxyDomain", "bypassDomain", "blockDomain"};
-        auto item = QInputDialog::getItem(GetMessageBoxParent(), tr("Save as route"),
-                                          tr("Save \"%1\" as a routing rule?").arg(newStr),
-                                          items, select, false, &ok);
-        if (ok) {
-            auto index = items.indexOf(item);
-            switch (index) {
-                case 0:
-                    ADD_TO_CURRENT_ROUTE(proxy_ip, newStr);
-                    break;
-                case 1:
-                    ADD_TO_CURRENT_ROUTE(direct_ip, newStr);
-                    break;
-                case 2:
-                    ADD_TO_CURRENT_ROUTE(block_ip, newStr);
-                    break;
-                case 3:
-                    ADD_TO_CURRENT_ROUTE(proxy_domain, newStr);
-                    break;
-                case 4:
-                    ADD_TO_CURRENT_ROUTE(direct_domain, newStr);
-                    break;
-                case 5:
-                    ADD_TO_CURRENT_ROUTE(block_domain, newStr);
-                    break;
-                default:
-                    break;
-            }
-            MW_dialog_message("", "UpdateDataStore,RouteChanged");
-        }
-    });
-    menu->addAction(action_add_route);
-
-    auto action_clear = new QAction(this);
-    action_clear->setText(tr("Clear"));
-    connect(action_clear, &QAction::triggered, this, [=] {
-        qvLogDocument->clear();
-        ui->masterLogBrowser->clear();
-    });
-    menu->addAction(action_clear);
-
-    menu->exec(ui->masterLogBrowser->viewport()->mapToGlobal(pos)); // 弹出菜单
-}
+// Log handling - moved to mainwindow_log.cpp
 
 // eventFilter
 
@@ -1635,210 +1374,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
     return QMainWindow::eventFilter(obj, event);
 }
 
-// profile selector
-
-void MainWindow::start_select_mode(QObject *context, const std::function<void(int)> &callback) {
-    select_mode = true;
-    connectOnce(this, &MainWindow::profile_selected, context, callback);
-    refresh_status();
-}
-
-// 连接列表
-
-inline QJsonArray last_arr; // format is nekoray_connections_json
-
-void MainWindow::refresh_connection_list(const QJsonArray &arr) {
-    if (last_arr == arr) {
-        return;
-    }
-    last_arr = arr;
-
-    if (NekoGui::dataStore->flag_debug) qDebug() << arr;
-
-    ui->tableWidget_conn->setRowCount(0);
-
-    int row = -1;
-    for (const auto &_item: arr) {
-        auto item = _item.toObject();
-        if (NekoGui::dataStore->ignoreConnTag.contains(item["Tag"].toString())) continue;
-
-        row++;
-        ui->tableWidget_conn->insertRow(row);
-
-        auto f0 = std::make_unique<QTableWidgetItem>();
-        f0->setData(114514, item["ID"].toInt());
-
-        // C0: Status
-        auto c0 = new QLabel;
-        auto start_t = item["Start"].toInt();
-        auto end_t = item["End"].toInt();
-        // icon
-        auto outboundTag = item["Tag"].toString();
-        if (outboundTag == "block") {
-            c0->setPixmap(Icon::GetMaterialIcon("cancel"));
-        } else {
-            if (end_t > 0) {
-                c0->setPixmap(Icon::GetMaterialIcon("history"));
-            } else {
-                c0->setPixmap(Icon::GetMaterialIcon("swap-vertical"));
-            }
-        }
-        c0->setAlignment(Qt::AlignCenter);
-        c0->setToolTip(tr("Start: %1\nEnd: %2").arg(DisplayTime(start_t), end_t > 0 ? DisplayTime(end_t) : ""));
-        ui->tableWidget_conn->setCellWidget(row, 0, c0);
-
-        // C1: Outbound
-        auto f = f0->clone();
-        f->setToolTip("");
-        f->setText(outboundTag);
-        ui->tableWidget_conn->setItem(row, 1, f);
-
-        // C2: Destination
-        f = f0->clone();
-        QString target1 = item["Dest"].toString();
-        QString target2 = item["RDest"].toString();
-        if (target2.isEmpty() || target1 == target2) {
-            target2 = "";
-        }
-        f->setText("[" + target1 + "] " + target2);
-        ui->tableWidget_conn->setItem(row, 2, f);
-    }
-}
-
-// Hotkey
-
-#ifndef NKR_NO_QHOTKEY
-
-#include <QHotkey>
-
-inline QList<std::shared_ptr<QHotkey>> RegisteredHotkey;
-
-void MainWindow::RegisterHotkey(bool unregister) {
-    while (!RegisteredHotkey.isEmpty()) {
-        auto hk = RegisteredHotkey.takeFirst();
-        hk->deleteLater();
-    }
-    if (unregister) return;
-
-    QStringList regstr{
-        NekoGui::dataStore->hotkey_mainwindow,
-        NekoGui::dataStore->hotkey_group,
-        NekoGui::dataStore->hotkey_route,
-        NekoGui::dataStore->hotkey_system_proxy_menu,
-    };
-
-    for (const auto &key: regstr) {
-        if (key.isEmpty()) continue;
-        if (regstr.count(key) > 1) return; // Conflict hotkey
-    }
-    for (const auto &key: regstr) {
-        QKeySequence k(key);
-        if (k.isEmpty()) continue;
-        auto hk = std::make_shared<QHotkey>(k, true);
-        if (hk->isRegistered()) {
-            RegisteredHotkey += hk;
-            connect(hk.get(), &QHotkey::activated, this, [=] { HotkeyEvent(key); });
-        } else {
-            hk->deleteLater();
-        }
-    }
-}
-
-void MainWindow::HotkeyEvent(const QString &key) {
-    if (key.isEmpty()) return;
-    runOnUiThread([=] {
-        if (key == NekoGui::dataStore->hotkey_mainwindow) {
-            tray->activated(QSystemTrayIcon::ActivationReason::Trigger);
-        } else if (key == NekoGui::dataStore->hotkey_group) {
-            on_menu_manage_groups_triggered();
-        } else if (key == NekoGui::dataStore->hotkey_route) {
-            on_menu_routing_settings_triggered();
-        } else if (key == NekoGui::dataStore->hotkey_system_proxy_menu) {
-            ui->menu_spmode->popup(QCursor::pos());
-        }
-    });
-}
-
-#else
-
-void MainWindow::RegisterHotkey(bool unregister) {}
-
-void MainWindow::HotkeyEvent(const QString &key) {}
-
-#endif
-
-// VPN Launcher
-
-bool MainWindow::StartVPNProcess() {
-    //
-    if (vpn_pid != 0) {
-        return true;
-    }
-    //
-    auto configPath = NekoGui::WriteVPNSingBoxConfig();
-    auto scriptPath = NekoGui::WriteVPNLinuxScript(configPath);
-    //
-#ifdef Q_OS_WIN
-    runOnNewThread([=] {
-        vpn_pid = 1; // TODO get pid?
-        WinCommander::runProcessElevated(QApplication::applicationDirPath() + "/nekobox_core.exe",
-                                         {"--disable-color", "run", "-c", configPath}, "",
-                                         NekoGui::dataStore->vpn_hide_console ? WinCommander::SW_HIDE : WinCommander::SW_SHOWMINIMIZED); // blocking
-        vpn_pid = 0;
-        runOnUiThread([=] { neko_set_spmode_vpn(false); });
-    });
-#else
-    //
-    auto vpn_process = new QProcess;
-    QProcess::connect(vpn_process, &QProcess::stateChanged, this, [=](QProcess::ProcessState state) {
-        if (state == QProcess::NotRunning) {
-            vpn_pid = 0;
-            vpn_process->deleteLater();
-            GetMainWindow()->neko_set_spmode_vpn(false);
-        }
-    });
-    //
-    vpn_process->setProcessChannelMode(QProcess::ForwardedChannels);
-#ifdef Q_OS_MACOS
-    vpn_process->start("osascript", {"-e", QStringLiteral("do shell script \"%1\" with administrator privileges")
-                                               .arg("bash " + scriptPath)});
-#else
-    vpn_process->start("pkexec", {"bash", scriptPath});
-#endif
-    vpn_process->waitForStarted();
-    vpn_pid = vpn_process->processId(); // actually it's pkexec or bash PID
-#endif
-    return true;
-}
-
-bool MainWindow::StopVPNProcess(bool unconditional) {
-    if (unconditional || vpn_pid != 0) {
-        bool ok;
-        core_process->processId();
-#ifdef Q_OS_WIN
-        auto ret = WinCommander::runProcessElevated("taskkill", {"/IM", "nekobox_core.exe",
-                                                                 "/FI",
-                                                                 "PID ne " + Int2String(core_process->processId())});
-        ok = ret == 0;
-#else
-        QProcess p;
-#ifdef Q_OS_MACOS
-        p.start("osascript", {"-e", QStringLiteral("do shell script \"%1\" with administrator privileges")
-                                        .arg("pkill -2 -U 0 nekobox_core")});
-#else
-        if (unconditional) {
-            p.start("pkexec", {"killall", "-2", "nekobox_core"});
-        } else {
-            p.start("pkexec", {"pkill", "-2", "-P", Int2String(vpn_pid)});
-        }
-#endif
-        p.waitForFinished();
-        ok = p.exitCode() == 0;
-#endif
-        if (!unconditional) {
-            ok ? vpn_pid = 0 : MessageBoxWarning(tr("Error"), tr("Failed to stop Tun process"));
-        }
-        return ok;
-    }
-    return true;
-}
+// Profile selector - moved to mainwindow_proxy_list.cpp
+// Connection list - moved to mainwindow_connection.cpp
+// Hotkey handling - moved to mainwindow_hotkey.cpp
+// VPN process management - moved to mainwindow_vpn.cpp
