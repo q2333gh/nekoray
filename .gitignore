@@ -5,6 +5,7 @@ qt_lib/
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
 *.zip
+build_tidy/
 
 *~
 *.autosave
