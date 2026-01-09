@@ -68,7 +68,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     themeManager->ApplyTheme(NekoGui::dataStore->theme);
     ui->setupUi(this);
     //
-    connect(ui->menu_start, &QAction::triggered, this, [=]() { neko_start(); });
+    connect(ui->menu_start, &QAction::triggered, this, [=]() {
+        // Log before starting
+        QString logPath = QDir::currentPath() + "/crash_log.txt";
+        QFile logFile(logPath);
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&logFile);
+            out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - menu_start triggered, calling neko_start()\n";
+            logFile.close();
+        }
+        neko_start();
+    });
     connect(ui->menu_stop, &QAction::triggered, this, [=]() { neko_stop(); });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=](int from, int to) {
         // use tabData to track tab & gid
@@ -107,6 +117,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     connect(ui->toolButton_update, &QToolButton::clicked, this, [=] { runOnNewThread([=] { CheckUpdate(); }); });
     connect(ui->toolButton_url_test, &QToolButton::clicked, this, [=] { speedtest_current_group(1, true); });
+    
+    // Set AccessibleName for WinAppDriver automation (only for QWidget, not QAction)
+    ui->toolButton_url_test->setAccessibleName("URLTestButton");
+    ui->proxyListTable->setAccessibleName("ProxyListTable");
+    this->setAccessibleName("MainWindow");
 
     // Setup log UI
     ui->splitter->restoreState(DecodeB64IfValid(NekoGui::dataStore->splitter_state));
@@ -412,18 +427,92 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             out << "Application directory: " << QApplication::applicationDirPath() << "\n";
             out << "Current working directory: " << QDir::currentPath() << "\n";
             out << "\n";
-#ifdef Q_OS_WIN
-            out << "Please ensure nekobox_core.exe is present in the application directory.\n";
-#else
-            out << "Please ensure nekobox_core is present in the application directory.\n";
-#endif
+            out << "Attempting automatic download...\n";
             logFile.close();
         }
-        // Exit application
+        
+        // Try to download core automatically
         qCritical() << "Core executable not found:" << core_path;
-        qCritical() << "Error log written to:" << logPath;
+        qCritical() << "Attempting automatic download...";
+        
+        // Show message to user
+        QMessageBox::information(this, software_name, 
+            QString("Core executable not found.\n\nAttempting to download automatically...\n\nThis may take a few minutes."));
+        
+        // Download core (this function needs to be accessible here)
+        // For now, we'll use a simple approach: call the download script
+#ifdef Q_OS_WIN
+        QString scriptPath = QDir(QApplication::applicationDirPath()).absolutePath() + "/libs/download_core.ps1";
+        QFileInfo scriptInfo(scriptPath);
+        
+        // Try to find script in repo
+        if (!scriptInfo.exists()) {
+            QDir dir(QApplication::applicationDirPath());
+            for (int i = 0; i < 5 && !scriptInfo.exists(); i++) {
+                dir.cdUp();
+                scriptPath = dir.absolutePath() + "/libs/download_core.ps1";
+                scriptInfo.setFile(scriptPath);
+            }
+        }
+        
+        if (scriptInfo.exists()) {
+            QProcess downloadProcess;
+            downloadProcess.setProgram("powershell.exe");
+            QStringList args;
+            args << "-ExecutionPolicy" << "Bypass";
+            args << "-File" << scriptPath;
+            args << "-DestDir" << QApplication::applicationDirPath();
+            args << "-Version" << "latest";
+            
+            downloadProcess.setArguments(args);
+            downloadProcess.setProcessChannelMode(QProcess::MergedChannels);
+            
+            qCritical() << "Starting download process...";
+            downloadProcess.start();
+            
+            if (downloadProcess.waitForFinished(300000)) { // 5 minutes timeout
+                int exitCode = downloadProcess.exitCode();
+                QString output = QString::fromUtf8(downloadProcess.readAllStandardOutput());
+                qCritical() << "Download finished with exit code:" << exitCode;
+                qCritical() << "Output:" << output;
+                
+                if (exitCode == 0) {
+                    // Verify downloaded file
+                    QFileInfo downloadedInfo(core_path);
+                    if (downloadedInfo.exists() && downloadedInfo.isFile()) {
+                        QMessageBox::information(this, software_name, 
+                            QString("Core downloaded successfully!\n\nPath: %1").arg(core_path));
+                        // Continue with initialization
+                    } else {
+                        QMessageBox::warning(this, software_name, 
+                            QString("Download completed but file not found.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases"));
+                        QApplication::exit(1);
+                        return;
+                    }
+                } else {
+                    QMessageBox::warning(this, software_name, 
+                        QString("Failed to download core executable.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases\n\nAnd place it in: %1").arg(QApplication::applicationDirPath()));
+                    QApplication::exit(1);
+                    return;
+                }
+            } else {
+                QMessageBox::warning(this, software_name, 
+                    QString("Download timed out.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases"));
+                QApplication::exit(1);
+                return;
+            }
+        } else {
+            QMessageBox::warning(this, software_name, 
+                QString("Download script not found.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases\n\nAnd place it in: %1").arg(QApplication::applicationDirPath()));
+            QApplication::exit(1);
+            return;
+        }
+#else
+        QMessageBox::warning(this, software_name, 
+            QString("Please ensure nekobox_core is present in the application directory."));
         QApplication::exit(1);
         return;
+#endif
     }
 
     QStringList args;
@@ -589,6 +678,16 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
             // take over by shortcut_esc
             break;
         case Qt::Key_Enter:
+            // Log before starting
+            {
+                QString logPath = QDir::currentPath() + "/crash_log.txt";
+                QFile logFile(logPath);
+                if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                    QTextStream out(&logFile);
+                    out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - Key_Enter pressed, calling neko_start()\n";
+                    logFile.close();
+                }
+            }
             neko_start();
             break;
         default:

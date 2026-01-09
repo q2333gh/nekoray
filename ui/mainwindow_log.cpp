@@ -23,12 +23,28 @@ void MainWindow::show_log_impl(const QString &log) {
     auto log_ignore = NekoGui::dataStore->log_ignore;
     for (const auto &line: lines) {
         bool showThisLine = true;
-        for (const auto &str: log_ignore) {
-            if (line.contains(str)) {
-                showThisLine = false;
-                break;
+        
+        // Don't filter core output (INFO, ERROR, WARN, DEBUG level logs)
+        // Also include common core log patterns
+        bool isCoreLog = line.contains("INFO[") || line.contains("ERROR[") || 
+                         line.contains("WARN[") || line.contains("DEBUG[") ||
+                         line.contains("outbound/") || line.contains("inbound/") ||
+                         line.contains("connection") || line.contains("stream") ||
+                         line.contains("grpc") || line.contains("listening") ||
+                         line.contains("started") || line.contains("stopped") ||
+                         line.contains("ms]") || line.contains("canceled") ||
+                         line.contains("upload:") || line.contains("download:");
+        
+        if (!isCoreLog) {
+            // Apply log_ignore filter only for non-core logs
+            for (const auto &str: log_ignore) {
+                if (line.contains(str)) {
+                    showThisLine = false;
+                    break;
+                }
             }
         }
+        
         if (showThisLine) newLines << line;
     }
     if (newLines.isEmpty()) return;

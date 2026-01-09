@@ -7,6 +7,10 @@
 #include <QTableWidgetItem>
 #include <QHeaderView>
 #include <QVBoxLayout>
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
+#include <QDir>
 
 // Group tab manage
 
@@ -251,6 +255,15 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const int &id) {
 }
 
 void MainWindow::on_proxyListTable_itemDoubleClicked(QTableWidgetItem *item) {
+    // Log before processing
+    QString logPath = QDir::currentPath() + "/crash_log.txt";
+    QFile logFile(logPath);
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - itemDoubleClicked called\n";
+        logFile.close();
+    }
+    
     auto id = item->data(114514).toInt();
     if (select_mode) {
         emit profile_selected(id);

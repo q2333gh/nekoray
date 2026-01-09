@@ -14,6 +14,108 @@
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
+#include <QFileInfo>
+#include <QApplication>
+#include <QDir>
+#include <QProcess>
+#include <QStandardPaths>
+
+// Helper function to write crash log
+static void WriteCrashLog(const QString &message) {
+    QString logPath = QDir::currentPath() + "/crash_log.txt";
+    QFile logFile(logPath);
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - " << message << "\n";
+        logFile.close();
+    }
+}
+
+// Helper function to download core executable
+static bool DownloadCoreExecutable(const QString &destDir) {
+    WriteCrashLog(QString("Attempting to download core executable to: %1").arg(destDir));
+    
+#ifdef Q_OS_WIN
+    // Find PowerShell script
+    QString repoRoot = QDir(QApplication::applicationDirPath()).absolutePath();
+    // Try to find repo root by looking for libs/download_core.ps1
+    QString scriptPath = repoRoot + "/libs/download_core.ps1";
+    QFileInfo scriptInfo(scriptPath);
+    
+    // If not found in application dir, try going up directories
+    if (!scriptInfo.exists()) {
+        QDir dir(repoRoot);
+        for (int i = 0; i < 5 && !scriptInfo.exists(); i++) {
+            dir.cdUp();
+            scriptPath = dir.absolutePath() + "/libs/download_core.ps1";
+            scriptInfo.setFile(scriptPath);
+        }
+    }
+    
+    if (!scriptInfo.exists()) {
+        WriteCrashLog(QString("CRITICAL: download_core.ps1 not found. Tried: %1").arg(scriptPath));
+        return false;
+    }
+    
+    WriteCrashLog(QString("Found download script at: %1").arg(scriptPath));
+    
+    // Execute PowerShell script
+    QProcess process;
+    process.setProgram("powershell.exe");
+    QStringList args;
+    args << "-ExecutionPolicy" << "Bypass";
+    args << "-File" << scriptPath;
+    args << "-DestDir" << destDir;
+    args << "-Version" << "latest";
+    
+    process.setArguments(args);
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    
+    WriteCrashLog("Starting PowerShell download process...");
+    process.start();
+    
+    if (!process.waitForStarted(5000)) {
+        WriteCrashLog("CRITICAL: Failed to start PowerShell process");
+        return false;
+    }
+    
+    // Wait for completion with timeout (5 minutes)
+    if (!process.waitForFinished(300000)) {
+        WriteCrashLog("CRITICAL: Download process timed out");
+        process.kill();
+        return false;
+    }
+    
+    int exitCode = process.exitCode();
+    QString output = QString::fromUtf8(process.readAllStandardOutput());
+    
+    WriteCrashLog(QString("Download process finished with exit code: %1").arg(exitCode));
+    WriteCrashLog(QString("Output: %1").arg(output));
+    
+    if (exitCode != 0) {
+        WriteCrashLog(QString("CRITICAL: Download failed with exit code: %1").arg(exitCode));
+        return false;
+    }
+    
+    // Verify the file was downloaded
+    QString corePath = destDir + "/nekobox_core.exe";
+    QFileInfo coreInfo(corePath);
+    if (!coreInfo.exists() || !coreInfo.isFile()) {
+        WriteCrashLog(QString("CRITICAL: Downloaded core file not found at: %1").arg(corePath));
+        return false;
+    }
+    
+    WriteCrashLog(QString("Core downloaded successfully to: %1").arg(corePath));
+    return true;
+#else
+    // Linux/Mac: not implemented yet
+    WriteCrashLog("Core auto-download not implemented for this platform");
+    return false;
+#endif
+}
 
 // ext core
 
@@ -59,16 +161,28 @@ inline bool speedtesting = false;
 inline QList<QThread *> speedtesting_threads = {};
 
 void MainWindow::speedtest_current_group(int mode, bool test_group) {
+    WriteCrashLog(QString("speedtest_current_group called: mode=%1, test_group=%2").arg(mode).arg(test_group ? "true" : "false"));
+    
+
+          
     if (speedtesting) {
+        WriteCrashLog("WARNING: speedtesting already in progress");
         MessageBoxWarning(software_name, QObject::tr("The last speed test did not exit completely, please wait. If it persists, please restart the program."));
         return;
     }
 
     auto profiles = get_selected_or_group();
     if (test_group) profiles = NekoGui::profileManager->CurrentGroup()->ProfilesWithOrder();
-    if (profiles.isEmpty()) return;
+    WriteCrashLog(QString("Profiles count: %1").arg(profiles.size()));
+    if (profiles.isEmpty()) {
+        WriteCrashLog("WARNING: profiles is empty, returning");
+        return;
+    }
     auto group = NekoGui::profileManager->CurrentGroup();
-    if (group->archive) return;
+    if (group->archive) {
+        WriteCrashLog("WARNING: group is archived, returning");
+        return;
+    }
 
     // menu_stop_testing
     if (mode == 114514) {
@@ -198,7 +312,19 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
                     }
 
                     bool rpcOK;
+                    if (defaultClient == nullptr) {
+                        MW_show_log(QString("[Test] gRPC client not available for profile: %1").arg(profile->bean->DisplayTypeAndName()));
+                        continue;
+                    }
+                    MW_show_log(QString("[Test] Testing profile: %1").arg(profile->bean->DisplayTypeAndName()));
+                    WriteCrashLog(QString("[Test] Testing profile: %1, mode=%2").arg(profile->bean->DisplayTypeAndName()).arg(mode));
                     auto result = defaultClient->Test(&rpcOK, req);
+                    WriteCrashLog(QString("[Test] gRPC Test result: rpcOK=%1, latency=%2 ms, error=%3").arg(rpcOK ? "true" : "false").arg(result.ms()).arg(result.error().c_str()));
+                    if (!rpcOK) {
+                        MW_show_log(QString("[Test] gRPC call failed for profile: %1").arg(profile->bean->DisplayTypeAndName()));
+                    } else {
+                        WriteCrashLog(QString("[Test] SUCCESS: Profile %1 tested, latency=%2 ms").arg(profile->bean->DisplayTypeAndName()).arg(result.ms()));
+                    }
                     //
                     if (!extCs.empty()) {
                         runOnUiThread(
@@ -246,18 +372,50 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
 
 void MainWindow::speedtest_current() {
 #ifndef NKR_NO_GRPC
+    WriteCrashLog("speedtest_current called");
+    
+    // Check if defaultClient is available
+    if (defaultClient == nullptr) {
+        WriteCrashLog("CRITICAL: defaultClient is nullptr in speedtest_current");
+        MW_show_log("[Error] gRPC client is not initialized. Cannot perform URL test.");
+        MessageBoxWarning(software_name, "gRPC client is not initialized. Please ensure core is running.");
+        return;
+    }
+    WriteCrashLog("defaultClient is valid");
+    
+    // Check if core is running
+    if (!NekoGui::dataStore->core_running) {
+        WriteCrashLog("WARNING: core_running is false");
+        MW_show_log("[Error] Core is not running. Cannot perform URL test.");
+        MessageBoxWarning(software_name, "Core is not running. Please start a profile first.");
+        return;
+    }
+    WriteCrashLog("core_running is true");
+    
     last_test_time = QTime::currentTime();
     ui->label_running->setText(tr("Testing"));
+    MW_show_log(QString("[URL Test] Starting test to: %1").arg(NekoGui::dataStore->test_latency_url));
+    WriteCrashLog(QString("Starting URL test to: %1").arg(NekoGui::dataStore->test_latency_url));
 
     runOnNewThread([=] {
+        WriteCrashLog("URL test thread started");
         libcore::TestReq req;
         req.set_mode(libcore::UrlTest);
         req.set_timeout(10 * 1000);
         req.set_url(NekoGui::dataStore->test_latency_url.toStdString());
 
         bool rpcOK;
+        MW_show_log("[URL Test] Calling gRPC Test...");
+        WriteCrashLog("Calling defaultClient->Test...");
         auto result = defaultClient->Test(&rpcOK, req);
-        if (!rpcOK) return;
+        WriteCrashLog(QString("Test returned: rpcOK=%1").arg(rpcOK ? "true" : "false"));
+        if (!rpcOK) {
+            MW_show_log("[URL Test] gRPC call failed");
+            WriteCrashLog("gRPC Test call failed");
+            return;
+        }
+        WriteCrashLog(QString("Test succeeded, latency: %1 ms").arg(result.ms()));
+        MW_show_log(QString("[URL Test] gRPC call succeeded, latency: %1 ms").arg(result.ms()));
 
         auto latency = result.ms();
         last_test_time = QTime::currentTime();
@@ -283,13 +441,219 @@ void MainWindow::stop_core_daemon() {
 }
 
 void MainWindow::neko_start(int _id) {
-    if (NekoGui::dataStore->prepare_exit) return;
+    WriteCrashLog(QString("neko_start called with _id=%1").arg(_id));
+    
+    if (NekoGui::dataStore->prepare_exit) {
+        WriteCrashLog("prepare_exit is true, returning");
+        return;
+    }
+
+    // Check core process first, create if not exists
+    if (core_process == nullptr) {
+        WriteCrashLog("WARNING: core_process is nullptr, attempting to initialize...");
+        
+        // Try to find core executable
+        QString core_path = QApplication::applicationDirPath() + "/";
+#ifdef Q_OS_WIN
+        core_path += "nekobox_core.exe";
+#else
+        core_path += "nekobox_core";
+#endif
+        
+        // Try alternative paths if not found
+        QFileInfo coreFileInfo(core_path);
+        if (!coreFileInfo.exists() || !coreFileInfo.isFile()) {
+            // Try current working directory
+            QString cwd_core_path = QDir::currentPath() + "/";
+#ifdef Q_OS_WIN
+            cwd_core_path += "nekobox_core.exe";
+#else
+            cwd_core_path += "nekobox_core";
+#endif
+            QFileInfo cwdCoreFileInfo(cwd_core_path);
+            if (cwdCoreFileInfo.exists() && cwdCoreFileInfo.isFile()) {
+                core_path = cwd_core_path;
+                WriteCrashLog(QString("Found core at current working directory: %1").arg(core_path));
+            } else {
+                // Core not found, try to download it automatically
+                WriteCrashLog(QString("Core executable not found, attempting automatic download..."));
+                WriteCrashLog(QString("Tried paths:"));
+                WriteCrashLog(QString("  1. %1").arg(core_path));
+                WriteCrashLog(QString("  2. %1").arg(cwd_core_path));
+                
+                // Show message to user
+                runOnUiThread([=] {
+                    MessageBoxInfo(software_name, QString("Core executable not found.\n\nAttempting to download automatically...\n\nThis may take a few minutes."));
+                });
+                
+                // Try to download to application directory
+                QString destDir = QApplication::applicationDirPath();
+                if (DownloadCoreExecutable(destDir)) {
+                    // Verify the downloaded file
+                    QString downloadedPath = destDir + "/nekobox_core.exe";
+                    QFileInfo downloadedInfo(downloadedPath);
+                    if (downloadedInfo.exists() && downloadedInfo.isFile()) {
+                        core_path = downloadedPath;
+                        WriteCrashLog(QString("Core downloaded successfully, using: %1").arg(core_path));
+                        runOnUiThread([=] {
+                            MessageBoxInfo(software_name, QString("Core downloaded successfully!\n\nPath: %1").arg(core_path));
+                        });
+                    } else {
+                        WriteCrashLog(QString("CRITICAL: Downloaded core file verification failed"));
+                        runOnUiThread([=] {
+                            MessageBoxWarning(software_name, QString("Failed to download core executable.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases\n\nAnd place it in: %1").arg(destDir));
+                        });
+                        return;
+                    }
+                } else {
+                    WriteCrashLog(QString("CRITICAL: Automatic download failed"));
+                    runOnUiThread([=] {
+                        MessageBoxWarning(software_name, QString("Failed to download core executable automatically.\n\nPlease manually download nekobox_core.exe from:\nhttps://github.com/MatsuriDayo/nekoray/releases\n\nAnd place it in: %1").arg(destDir));
+                    });
+                    return;
+                }
+            }
+        }
+        
+        // Initialize core process - must be done in UI thread (DS_cores thread)
+        WriteCrashLog(QString("Initializing core_process with path: %1").arg(core_path));
+        QString found_core_path = core_path; // Capture for lambda
+        
+        // Generate token and port
+        NekoGui::dataStore->core_token = GetRandomString(32);
+        NekoGui::dataStore->core_port = MkPort();
+        if (NekoGui::dataStore->core_port <= 0) NekoGui::dataStore->core_port = 19810;
+        
+        QStringList args;
+        args.push_back("nekobox");
+        args.push_back("-port");
+        args.push_back(Int2String(NekoGui::dataStore->core_port));
+        if (NekoGui::dataStore->flag_debug) args.push_back("-debug");
+        
+        // Create core process in the correct thread (DS_cores)
+        // Use runOnUiThread to ensure thread safety
+        WriteCrashLog("Scheduling core_process creation in DS_cores thread...");
+        runOnUiThread(
+            [=] {
+                WriteCrashLog("Creating core_process in DS_cores thread...");
+                if (core_process == nullptr) {
+                    core_process = new NekoGui_sys::CoreProcess(found_core_path, args);
+                    WriteCrashLog("core_process created successfully");
+                    
+                    // Remember last started
+                    if (NekoGui::dataStore->remember_enable && NekoGui::dataStore->remember_id >= 0) {
+                        core_process->start_profile_when_core_is_up = NekoGui::dataStore->remember_id;
+                    }
+                    
+                    // Start core process
+                    core_process->Start();
+                    WriteCrashLog("core_process started");
+                    
+                    // Setup gRPC
+                    setup_grpc();
+                    WriteCrashLog("gRPC setup completed");
+                } else {
+                    WriteCrashLog("core_process already exists, skipping creation");
+                }
+            },
+            DS_cores);
+        
+        // Wait a bit for initialization to complete
+        // Note: runOnUiThread is asynchronous, so we wait a bit
+        WriteCrashLog("Waiting for core_process initialization...");
+        QThread::msleep(1000);
+        
+        // Check if core_process was created
+        if (core_process == nullptr) {
+            WriteCrashLog("CRITICAL: core_process is still nullptr after initialization attempt");
+            WriteCrashLog("This may indicate a threading issue. Please restart the application.");
+            runOnUiThread([=] {
+                MessageBoxWarning(software_name, "Failed to initialize core process. Please restart the application.");
+            });
+            return;
+        }
+        
+        WriteCrashLog("core_process initialization completed successfully");
+    }
+    WriteCrashLog("core_process is valid");
+
+    // Get core path from core_process (already validated in constructor)
+    QString core_path = core_process->program;
+    WriteCrashLog(QString("Using core path from core_process: %1").arg(core_path));
+    
+    // Verify the path still exists (in case it was deleted after startup)
+    QFileInfo coreFileInfo(core_path);
+    if (!coreFileInfo.exists() || !coreFileInfo.isFile()) {
+        WriteCrashLog(QString("WARNING: Core executable not found at stored path: %1").arg(core_path));
+        WriteCrashLog(QString("Application dir: %1").arg(QApplication::applicationDirPath()));
+        WriteCrashLog(QString("Current dir: %1").arg(QDir::currentPath()));
+        
+        // Try to find core in application directory (same logic as constructor)
+        QString alt_core_path = QApplication::applicationDirPath() + "/";
+#ifdef Q_OS_WIN
+        alt_core_path += "nekobox_core.exe";
+#else
+        alt_core_path += "nekobox_core";
+#endif
+        QFileInfo altCoreFileInfo(alt_core_path);
+        if (altCoreFileInfo.exists() && altCoreFileInfo.isFile()) {
+            WriteCrashLog(QString("Found core at alternative path: %1").arg(alt_core_path));
+            core_path = alt_core_path;
+            // Update core_process with the correct path
+            core_process->program = core_path;
+        } else {
+            // Try current working directory
+            QString cwd_core_path = QDir::currentPath() + "/";
+#ifdef Q_OS_WIN
+            cwd_core_path += "nekobox_core.exe";
+#else
+            cwd_core_path += "nekobox_core";
+#endif
+            QFileInfo cwdCoreFileInfo(cwd_core_path);
+            if (cwdCoreFileInfo.exists() && cwdCoreFileInfo.isFile()) {
+                WriteCrashLog(QString("Found core at current working directory: %1").arg(cwd_core_path));
+                core_path = cwd_core_path;
+                core_process->program = core_path;
+            } else {
+                WriteCrashLog(QString("CRITICAL: Core executable not found at any location"));
+                WriteCrashLog(QString("Tried paths:"));
+                WriteCrashLog(QString("  1. %1").arg(core_path));
+                WriteCrashLog(QString("  2. %1").arg(alt_core_path));
+                WriteCrashLog(QString("  3. %1").arg(cwd_core_path));
+                runOnUiThread([=] {
+                    MessageBoxWarning(software_name, QString("Core executable not found!\n\nTried paths:\n1. %1\n2. %2\n3. %3\n\nPlease ensure nekobox_core is present.").arg(core_path, alt_core_path, cwd_core_path));
+                });
+                return;
+            }
+        }
+    }
+    WriteCrashLog(QString("Core executable verified at: %1").arg(core_path));
+
+    // Check gRPC client
+#ifndef NKR_NO_GRPC
+    if (defaultClient == nullptr) {
+        WriteCrashLog("CRITICAL: defaultClient is nullptr");
+        WriteCrashLog(QString("core_running=%1").arg(NekoGui::dataStore->core_running ? "true" : "false"));
+        runOnUiThread([=] {
+            MessageBoxWarning(software_name, "gRPC client is not initialized. Core may not be running. Please restart the application.");
+        });
+        return;
+    }
+    WriteCrashLog("defaultClient is valid");
+#endif
 
     auto ents = get_now_selected_list();
+    WriteCrashLog(QString("get_now_selected_list returned %1 items").arg(ents.size()));
+    
     auto ent = (_id < 0 && !ents.isEmpty()) ? ents.first() : NekoGui::profileManager->GetProfile(_id);
-    if (ent == nullptr) return;
+    if (ent == nullptr) {
+        WriteCrashLog(QString("ent is nullptr, _id=%1, ents.size()=%2").arg(_id).arg(ents.size()));
+        return;
+    }
+    WriteCrashLog(QString("Selected profile: id=%1, type=%2, name=%3").arg(ent->id).arg(ent->bean->DisplayType()).arg(ent->bean->name));
 
     if (select_mode) {
+        WriteCrashLog("select_mode is true, emitting profile_selected");
         emit profile_selected(ent->id);
         select_mode = false;
         refresh_status();
@@ -297,16 +661,29 @@ void MainWindow::neko_start(int _id) {
     }
 
     auto group = NekoGui::profileManager->GetGroup(ent->gid);
-    if (group == nullptr || group->archive) return;
+    if (group == nullptr || group->archive) {
+        WriteCrashLog(QString("Group is nullptr or archived, gid=%1").arg(ent->gid));
+        return;
+    }
+    WriteCrashLog(QString("Group is valid: gid=%1, name=%2").arg(group->id).arg(group->name));
 
+    WriteCrashLog("Calling BuildConfig...");
     auto result = BuildConfig(ent, false, false);
     if (!result->error.isEmpty()) {
+        WriteCrashLog(QString("BuildConfig error: %1").arg(result->error));
         MessageBoxWarning("BuildConfig return error", result->error);
         return;
     }
+    WriteCrashLog("BuildConfig succeeded");
 
     auto neko_start_stage2 = [=] {
+        WriteCrashLog("neko_start_stage2 called");
 #ifndef NKR_NO_GRPC
+        if (defaultClient == nullptr) {
+            WriteCrashLog("CRITICAL: defaultClient is nullptr in neko_start_stage2");
+            return false;
+        }
+        WriteCrashLog("Preparing LoadConfigReq...");
         libcore::LoadConfigReq req;
         req.set_core_config(QJsonObject2QString(result->coreConfig, false).toStdString());
         req.set_enable_nekoray_connections(NekoGui::dataStore->connection_statistics);
@@ -315,19 +692,26 @@ void MainWindow::neko_start(int _id) {
             req.add_stats_outbounds("bypass");
         }
         //
+        WriteCrashLog("Calling defaultClient->Start...");
         bool rpcOK;
         QString error = defaultClient->Start(&rpcOK, req);
+        WriteCrashLog(QString("defaultClient->Start returned: rpcOK=%1, error=%2").arg(rpcOK ? "true" : "false").arg(error));
         if (rpcOK && !error.isEmpty()) {
+            WriteCrashLog(QString("LoadConfig error: %1").arg(error));
             runOnUiThread([=] { MessageBoxWarning("LoadConfig return error", error); });
             return false;
         } else if (!rpcOK) {
+            WriteCrashLog("LoadConfig failed: rpcOK is false");
             return false;
         }
+        WriteCrashLog("LoadConfig succeeded");
         //
+        WriteCrashLog("Setting up traffic looper...");
         NekoGui_traffic::trafficLooper->proxy = result->outboundStat.get();
         NekoGui_traffic::trafficLooper->items = result->outboundStats;
         NekoGui::dataStore->ignoreConnTag = result->ignoreConnTag;
         NekoGui_traffic::trafficLooper->loop_enabled = true;
+        WriteCrashLog("Traffic looper setup complete");
 #endif
 
         runOnUiThread(
@@ -360,7 +744,17 @@ void MainWindow::neko_start(int _id) {
     mu_stopping.unlock();
 
     // check core state
+    WriteCrashLog(QString("Checking core state: core_running=%1").arg(NekoGui::dataStore->core_running ? "true" : "false"));
     if (!NekoGui::dataStore->core_running) {
+        WriteCrashLog("Core is not running, attempting to restart...");
+        if (core_process == nullptr) {
+            WriteCrashLog("CRITICAL: core_process is nullptr when trying to restart");
+            runOnUiThread([=] {
+                MessageBoxWarning(software_name, "Core process is not initialized. Cannot restart core.");
+            });
+            mu_starting.unlock();
+            return;
+        }
         runOnUiThread(
             [=] {
                 MW_show_log("Try to start the config, but the core has not listened to the grpc port, so restart it...");
@@ -369,8 +763,10 @@ void MainWindow::neko_start(int _id) {
             },
             DS_cores);
         mu_starting.unlock();
+        WriteCrashLog("Core restart initiated, returning");
         return; // let CoreProcess call neko_start when core is up
     }
+    WriteCrashLog("Core is running, proceeding with start");
 
     // timeout message
     auto restartMsgbox = new QMessageBox(QMessageBox::Question, software_name, tr("If there is no response for a long time, it is recommended to restart the software."),
@@ -379,15 +775,29 @@ void MainWindow::neko_start(int _id) {
     auto restartMsgboxTimer = new MessageBoxTimer(this, restartMsgbox, 5000);
 
     runOnNewThread([=] {
+        WriteCrashLog("Starting profile in new thread...");
         // stop current running
         if (NekoGui::dataStore->started_id >= 0) {
+            WriteCrashLog(QString("Stopping current profile: id=%1").arg(NekoGui::dataStore->started_id));
             runOnUiThread([=] { neko_stop(false, true); });
             sem_stopped.acquire();
+            WriteCrashLog("Current profile stopped");
         }
         // do start
+        WriteCrashLog(QString("Starting profile: %1").arg(ent->bean->DisplayTypeAndName()));
         MW_show_log(">>>>>>>> " + tr("Starting profile %1").arg(ent->bean->DisplayTypeAndName()));
         if (!neko_start_stage2()) {
+            WriteCrashLog(QString("Failed to start profile: %1").arg(ent->bean->DisplayTypeAndName()));
             MW_show_log("<<<<<<<< " + tr("Failed to start profile %1").arg(ent->bean->DisplayTypeAndName()));
+        } else {
+            WriteCrashLog(QString("Profile started successfully: %1").arg(ent->bean->DisplayTypeAndName()));
+            // Auto-trigger URL test after profile starts successfully (for automated testing)
+            // Wait a bit for the profile to fully establish connection
+            QThread::msleep(2000);
+            WriteCrashLog("Auto-triggering URL test after profile start...");
+            runOnUiThread([=] {
+                speedtest_current_group(1, true);  // mode=1 (URL test), test_group=true
+            });
         }
         mu_starting.unlock();
         // cancel timeout
