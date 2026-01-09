@@ -62,6 +62,22 @@ jobs:
           cmake --build build --config Release
         shell: cmd
 
+      - name: Read nekoray version
+        if: success()
+        shell: pwsh
+        run: |
+          $v = Get-Content nekoray_version.txt -Raw
+          $v = $v.Trim()
+          echo "NEKORAY_VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Package Windows release zip
+        if: success() && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $zipName = "nekoray-win64-$env:NEKORAY_VERSION-${{ github.run_number }}.zip"
+          Compress-Archive -Path "build/Release/*" -DestinationPath $zipName -Force
+          echo "RELEASE_ZIP=$zipName" >> $env:GITHUB_ENV
+
       - name: Upload nekobox artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -70,3 +86,15 @@ jobs:
           path: |
             build/Release/nekobox.exe
 
+      - name: Create GitHub Release for Windows build
+        if: success() && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.NEKORAY_VERSION }}-${{ github.run_number }}
+          name: Nekoray Windows v${{ env.NEKORAY_VERSION }} (build ${{ github.run_number }})
+          draft: false
+          prerelease: true
+          files: |
+            ${{ env.RELEASE_ZIP }}
