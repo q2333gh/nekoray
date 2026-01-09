@@ -20,7 +20,6 @@ jobs:
       QT_HOST: "windows"
       QT_TARGET: "desktop"
       QT_ARCH: "win64_msvc2019_64"
-      QT_MODULES: "qtbase qtsvg qttools qttranslations"
 
     steps:
       - name: Checkout repository
@@ -41,7 +40,6 @@ jobs:
         run: |
           python -m aqt install-qt ^
             %QT_HOST% %QT_TARGET% %QT_VERSION% %QT_ARCH% ^
-            --modules %QT_MODULES% ^
             --outputdir C:\Qt
         shell: cmd
 
