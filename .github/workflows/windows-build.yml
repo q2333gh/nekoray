@@ -1,0 +1,72 @@
+name: Windows Qt6 CMake Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      QT_VERSION_MAJOR: "6"
+      QT_VERSION: "6.5.3"
+      QT_HOST: "windows"
+      QT_TARGET: "desktop"
+      QT_ARCH: "win64_msvc2019_64"
+      QT_MODULES: "qtbase qtsvg qttools qttranslations"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install aqtinstall
+        run: |
+          pip install aqtinstall
+
+      - name: Install Qt
+        run: |
+          python -m aqt install-qt ^
+            %QT_HOST% %QT_TARGET% %QT_VERSION% %QT_ARCH% ^
+            --modules %QT_MODULES% ^
+            --outputdir C:\Qt
+        shell: cmd
+
+      - name: Configure CMake (Release, Qt6, minimal external deps)
+        run: |
+          set QT_ROOT=C:\Qt\%QT_VERSION%\msvc2019_64
+          cmake -S . -B build ^
+            -DQT_VERSION_MAJOR=%QT_VERSION_MAJOR% ^
+            -DNKR_NO_GRPC=ON ^
+            -DNKR_NO_YAML=ON ^
+            -DNKR_NO_ZXING=ON ^
+            -DNKR_NO_QHOTKEY=ON ^
+            -DCMAKE_PREFIX_PATH="%QT_ROOT%"
+        shell: cmd
+
+      - name: Build
+        run: |
+          cmake --build build --config Release
+        shell: cmd
+
+      - name: Upload nekobox artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nekobox-windows-release
+          path: |
+            build/Release/nekobox.exe
+

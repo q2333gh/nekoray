@@ -59,6 +59,59 @@ ninja
 
 最后运行 `windeployqt nekobox.exe` 自动复制所需 DLL 等文件到当前目录
 
+### 本地快速构建（使用 Qt 6.5，免 shell 脚本）
+
+以下步骤是当前在 Windows 10/11 上实际验证通过的一套最小构建流程，不依赖仓库里的 `.sh`：
+
+1. 在 PowerShell 或 CMD 中安装 CMake（如已自带可跳过）：
+
+   ```powershell
+   winget install --id Kitware.CMake --source winget --accept-package-agreements --accept-source-agreements --silent
+   ```
+
+2. 确认 CMake 可用：
+
+   ```powershell
+   cmake --version
+   ```
+
+3. 假设源码位于 `C:\Users\xxx\code\nekoray`，且已将 Qt 6.5 SDK 解压到 `qt_lib\qt650`，在该目录下执行：
+
+   ```powershell
+   cd C:\Users\xxx\code\nekoray
+   cmake -S . -B build `
+     -DQT_VERSION_MAJOR=6 `
+     -DNKR_NO_GRPC=ON `
+     -DNKR_NO_YAML=ON `
+     -DNKR_NO_ZXING=ON `
+     -DNKR_NO_QHOTKEY=ON `
+     -DCMAKE_PREFIX_PATH="C:/Users/xxx/code/nekoray/qt_lib/qt650"
+
+   cmake --build build --config Release
+   ```
+
+   构建成功后可执行文件位于：
+
+   ```text
+   C:\Users\xxx\code\nekoray\build\Release\nekobox.exe
+   ```
+
+4. 使用 Qt 自带的 `windeployqt` 部署依赖 DLL：
+
+   ```powershell
+   cd C:\Users\xxx\code\nekoray\build\Release
+   C:\Users\xxx\code\nekoray\qt_lib\qt650\bin\windeployqt.exe nekobox.exe
+   ```
+
+5. 如遇到 `libcrypto-3-x64.dll` / `libssl-3-x64.dll` 缺失，可手动从 Qt SDK 复制到 Release 目录：
+
+   ```powershell
+   Copy-Item "C:\Users\xxx\code\nekoray\qt_lib\qt650\bin\libcrypto-3-x64.dll" -Destination ".\libcrypto-3-x64.dll" -Force
+   Copy-Item "C:\Users\xxx\code\nekoray\qt_lib\qt650\bin\libssl-3-x64.dll"     -Destination ".\libssl-3-x64.dll"     -Force
+   ```
+
+此时直接运行 `nekobox.exe` 即可启动 GUI。
+
 ### Go 部分编译
 
 请看 [Build_Core.md](./Build_Core.md)

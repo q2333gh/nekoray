@@ -1,5 +1,9 @@
+qt_lib/
+
+
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
+
 
 *~
 *.autosave
