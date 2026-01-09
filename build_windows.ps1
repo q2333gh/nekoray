@@ -7,19 +7,25 @@
     powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 
   Parameters:
-    -QtRoot   Qt SDK root directory (default: .\qt_lib\qt650)
-    -Config   CMake configuration (Debug / Release / RelWithDebInfo / MinSizeRel)
+    -QtRoot           Qt SDK root directory (default: .\qt_lib\qt650)
+    -Config           CMake configuration (Debug / Release / RelWithDebInfo / MinSizeRel)
+    -DownloadCore     Download prebuilt nekobox_core from GitHub Releases
+    -DownloadResources Download geosite/geodb resources (default: true)
 
   Steps:
     1. Configure CMake with Qt6 and minimal external deps
     2. Build nekobox (MSVC)
     3. Copy build\<Config>\nekobox.exe to repo root as nekobox.exe
+    4. Download public resources (geosite.dat, geosite.db, geoip.dat, geoip.db)
+    5. Optionally download prebuilt nekobox_core if -DownloadCore is specified
 #>
 
 param(
     [string]$QtRoot = "",
     [ValidateSet("Debug", "Release", "RelWithDebInfo", "MinSizeRel")]
-    [string]$Config = "Release"
+    [string]$Config = "Release",
+    [switch]$DownloadCore = $false,
+    [switch]$DownloadResources = $true
 )
 
 Set-StrictMode -Version Latest
@@ -107,17 +113,37 @@ Copy-Item -LiteralPath $BuiltExe -Destination $TargetExe -Force
 Write-Info "Done. nekobox.exe is available in repo root."
 
 # Download public resources (geosite, geodb, etc.)
-Write-Info "Downloading public resources..."
-$DownloadScript = Join-Path $RepoRoot "libs\download_resources.ps1"
-$ReleaseDir = Join-Path $BuildDir "$Config"
+if ($DownloadResources) {
+    Write-Info "Downloading public resources..."
+    $DownloadScript = Join-Path $RepoRoot "libs\download_resources.ps1"
+    $ReleaseDir = Join-Path $BuildDir $Config
 
-if (Test-Path -LiteralPath $DownloadScript) {
-    & powershell -ExecutionPolicy Bypass -File $DownloadScript -DestDir $ReleaseDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorMsg "Failed to download public resources (exit code=$LASTEXITCODE)."
-        exit $LASTEXITCODE
+    if (Test-Path -LiteralPath $DownloadScript) {
+        & powershell -ExecutionPolicy Bypass -File $DownloadScript -DestDir $ReleaseDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] Failed to download public resources (exit code=$LASTEXITCODE). Continuing..." -ForegroundColor Yellow
+        } else {
+            Write-Info "Public resources downloaded to $ReleaseDir"
+        }
+    } else {
+        Write-Host "[WARN] download_resources.ps1 not found, skipping resource download" -ForegroundColor Yellow
     }
-    Write-Info "Public resources downloaded to $ReleaseDir"
-} else {
-    Write-Host "[WARN] download_resources.ps1 not found, skipping resource download" -ForegroundColor Yellow
+}
+
+# Download prebuilt nekobox_core if requested
+if ($DownloadCore) {
+    Write-Info "Downloading prebuilt nekobox_core..."
+    $DownloadCoreScript = Join-Path $RepoRoot "libs\download_core.ps1"
+    $ReleaseDir = Join-Path $BuildDir $Config
+
+    if (Test-Path -LiteralPath $DownloadCoreScript) {
+        & powershell -ExecutionPolicy Bypass -File $DownloadCoreScript -DestDir $ReleaseDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] Failed to download nekobox_core (exit code=$LASTEXITCODE). Continuing..." -ForegroundColor Yellow
+        } else {
+            Write-Info "nekobox_core downloaded successfully"
+        }
+    } else {
+        Write-Host "[WARN] download_core.ps1 not found, skipping core download" -ForegroundColor Yellow
+    }
 }
