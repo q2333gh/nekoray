@@ -60,13 +60,62 @@ jobs:
           cmake --build build --config Release
         shell: cmd
 
-      - name: Read nekoray version
+      - name: Get commit date for version
         if: success()
         shell: pwsh
         run: |
-          $v = Get-Content nekoray_version.txt -Raw
-          $v = $v.Trim()
-          echo "NEKORAY_VERSION=$v" >> $env:GITHUB_ENV
+          $commitDate = git log -1 --format=%ci
+          $datePart = ($commitDate -split ' ')[0]
+          $dateFormatted = $datePart -replace '-', ''
+          echo "COMMIT_DATE=$datePart" >> $env:GITHUB_ENV
+          echo "COMMIT_DATE_FORMATTED=$dateFormatted" >> $env:GITHUB_ENV
+          
+          # Read base version from file
+          $baseVersion = (Get-Content nekoray_version.txt -Raw).Trim()
+          $versionParts = $baseVersion -split '-'
+          if ($versionParts.Length -ge 2) {
+            $majorVersion = $versionParts[0]
+            # Use commit date instead of fixed date
+            $newVersion = "$majorVersion-$datePart"
+          } else {
+            $newVersion = "$baseVersion-$datePart"
+          }
+          echo "NEKORAY_VERSION=$newVersion" >> $env:GITHUB_ENV
+
+      - name: Deploy Qt DLLs with windeployqt
+        if: success()
+        shell: pwsh
+        run: |
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
+          $buildReleaseDir = "build\Release"
+          Set-Location $buildReleaseDir
+          
+          # Run windeployqt
+          & "$qtBinPath\windeployqt.exe" nekobox.exe --no-compiler-runtime --no-system-d3d-compiler --no-opengl-sw
+          
+          # Remove unnecessary files
+          Remove-Item -Path "translations" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "libEGL.dll" -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "libGLESv2.dll" -Force -ErrorAction SilentlyContinue
+          Remove-Item -Path "Qt6Pdf.dll" -Force -ErrorAction SilentlyContinue
+          
+          Set-Location ${{ github.workspace }}
+
+      - name: Copy OpenSSL DLLs
+        if: success()
+        shell: pwsh
+        run: |
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
+          $buildReleaseDir = "build\Release"
+          Copy-Item "$qtBinPath\libcrypto-3-x64.dll" -Destination $buildReleaseDir -Force
+          Copy-Item "$qtBinPath\libssl-3-x64.dll" -Destination $buildReleaseDir -Force
+
+      - name: Download resources (geosite, geoip, etc.)
+        if: success()
+        shell: pwsh
+        run: |
+          $buildReleaseDir = "build\Release"
+          & powershell -ExecutionPolicy Bypass -File "libs\download_resources.ps1" -DestDir $buildReleaseDir
 
       - name: Package Windows release zip
         if: success() && github.event_name == 'push'
