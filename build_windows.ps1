@@ -70,11 +70,24 @@ Write-Info ("CMake OK: " + ($cmakeVersion -split "`n")[0])
 
 $BuildDir = Join-Path $RepoRoot "build"
 
-Write-Info "Configuring CMake (Config=$Config, QT_VERSION_MAJOR=6, minimal external deps)..."
+# Build Protobuf if gRPC is enabled
+if (-not $env:NKR_NO_GRPC) {
+    Write-Info "Building Protobuf dependency for gRPC..."
+    $ProtobufScript = Join-Path $RepoRoot "libs\build_protobuf_windows.ps1"
+    if (Test-Path $ProtobufScript) {
+        & powershell -ExecutionPolicy Bypass -File $ProtobufScript
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Protobuf build failed, but continuing..."
+        }
+    } else {
+        Write-Warning "Protobuf build script not found: $ProtobufScript"
+    }
+}
+
+Write-Info "Configuring CMake (Config=$Config, QT_VERSION_MAJOR=6, gRPC enabled)..."
 
 & cmake -S $RepoRoot -B $BuildDir `
     -DQT_VERSION_MAJOR=6 `
-    -DNKR_NO_GRPC=ON `
     -DNKR_NO_YAML=ON `
     -DNKR_NO_ZXING=ON `
     -DNKR_NO_QHOTKEY=ON `

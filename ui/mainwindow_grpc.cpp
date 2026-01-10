@@ -172,20 +172,36 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
     }
 
     auto profiles = get_selected_or_group();
-    if (test_group) profiles = NekoGui::profileManager->CurrentGroup()->ProfilesWithOrder();
-    WriteCrashLog(QString("Profiles count: %1").arg(profiles.size()));
+    WriteCrashLog(QString("Initial profiles from get_selected_or_group: %1").arg(profiles.size()));
+    if (test_group) {
+        auto currentGroup = NekoGui::profileManager->CurrentGroup();
+        if (currentGroup) {
+            profiles = currentGroup->ProfilesWithOrder();
+            WriteCrashLog(QString("Using group profiles, count: %1").arg(profiles.size()));
+        } else {
+            WriteCrashLog("ERROR: CurrentGroup is nullptr when test_group=true");
+            return;
+        }
+    }
+    WriteCrashLog(QString("Final profiles count: %1").arg(profiles.size()));
     if (profiles.isEmpty()) {
-        WriteCrashLog("WARNING: profiles is empty, returning");
+        WriteCrashLog("ERROR: profiles is empty, returning");
         return;
     }
     auto group = NekoGui::profileManager->CurrentGroup();
+    if (!group) {
+        WriteCrashLog("ERROR: CurrentGroup is nullptr");
+        return;
+    }
     if (group->archive) {
         WriteCrashLog("WARNING: group is archived, returning");
         return;
     }
+    WriteCrashLog("All checks passed, proceeding with speedtest setup");
 
     // menu_stop_testing
     if (mode == 114514) {
+        WriteCrashLog("Mode is 114514 (stop testing), returning");
         while (!speedtesting_threads.isEmpty()) {
             auto t = speedtesting_threads.takeFirst();
             if (t != nullptr) t->exit();
@@ -195,6 +211,7 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
     }
 
 #ifndef NKR_NO_GRPC
+    WriteCrashLog("NKR_NO_GRPC is not defined, proceeding with gRPC test");
     QStringList full_test_flags;
     if (mode == libcore::FullTest) {
         auto w = new QDialog(this);
@@ -230,9 +247,12 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
         w->deleteLater();
         if (full_test_flags.isEmpty()) return;
     }
+    WriteCrashLog("About to set speedtesting=true and start test thread");
     speedtesting = true;
+    WriteCrashLog(QString("speedtesting set to true, starting test thread with %1 profiles, mode=%2").arg(profiles.size()).arg(mode));
 
     runOnNewThread([this, profiles, mode, full_test_flags]() {
+        WriteCrashLog(QString("Test thread started! Processing %1 profiles, mode=%2").arg(profiles.size()).arg(mode));
         QMutex lock_write;
         QMutex lock_return;
         int threadN = NekoGui::dataStore->test_concurrent;
@@ -240,9 +260,11 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
         auto profiles_test = profiles; // copy
 
         // Threads
+        WriteCrashLog(QString("[THREAD] Creating %1 test worker threads, threadN=%2").arg(threadN).arg(threadN));
         lock_return.lock();
         for (int i = 0; i < threadN; i++) {
-            runOnNewThread([&] {
+            runOnNewThread([&, i] {
+                WriteCrashLog(QString("[WORKER] Test worker thread %1 started").arg(i));
                 speedtesting_threads << QObject::thread();
 
                 forever {
@@ -313,17 +335,23 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
 
                     bool rpcOK;
                     if (defaultClient == nullptr) {
+                        WriteCrashLog(QString("[Test] ERROR: gRPC client not available for profile: %1").arg(profile->bean->DisplayTypeAndName()));
                         MW_show_log(QString("[Test] gRPC client not available for profile: %1").arg(profile->bean->DisplayTypeAndName()));
                         continue;
                     }
+                    WriteCrashLog(QString("[Test] Starting test for profile: %1, mode=%2").arg(profile->bean->DisplayTypeAndName()).arg(mode));
                     MW_show_log(QString("[Test] Testing profile: %1").arg(profile->bean->DisplayTypeAndName()));
-                    WriteCrashLog(QString("[Test] Testing profile: %1, mode=%2").arg(profile->bean->DisplayTypeAndName()).arg(mode));
                     auto result = defaultClient->Test(&rpcOK, req);
-                    WriteCrashLog(QString("[Test] gRPC Test result: rpcOK=%1, latency=%2 ms, error=%3").arg(rpcOK ? "true" : "false").arg(result.ms()).arg(result.error().c_str()));
+                    WriteCrashLog(QString("[Test] gRPC Test completed: rpcOK=%1").arg(rpcOK ? "true" : "false"));
                     if (!rpcOK) {
+                        WriteCrashLog(QString("[Test] ERROR: gRPC call failed for profile: %1").arg(profile->bean->DisplayTypeAndName()));
                         MW_show_log(QString("[Test] gRPC call failed for profile: %1").arg(profile->bean->DisplayTypeAndName()));
                     } else {
-                        WriteCrashLog(QString("[Test] SUCCESS: Profile %1 tested, latency=%2 ms").arg(profile->bean->DisplayTypeAndName()).arg(result.ms()));
+                        WriteCrashLog(QString("[Test] SUCCESS: Profile %1 tested successfully").arg(profile->bean->DisplayTypeAndName()));
+                        WriteCrashLog(QString("[Test] Result: latency=%1 ms, error='%2'").arg(result.ms()).arg(result.error().c_str()));
+                        if (result.ms() > 0) {
+                            WriteCrashLog(QString("[Test] FINAL: URL test succeeded with latency %1 ms for %2").arg(result.ms()).arg(profile->bean->DisplayTypeAndName()));
+                        }
                     }
                     //
                     if (!extCs.empty()) {
