@@ -107,8 +107,58 @@ jobs:
         run: |
           $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
           $buildReleaseDir = "build\Release"
-          Copy-Item "$qtBinPath\libcrypto-3-x64.dll" -Destination $buildReleaseDir -Force
-          Copy-Item "$qtBinPath\libssl-3-x64.dll" -Destination $buildReleaseDir -Force
+          
+          # Check for OpenSSL DLLs in various possible locations
+          $cryptoPaths = @(
+            "$qtBinPath\libcrypto-3-x64.dll",
+            "$qtBinPath\libcrypto-1_1-x64.dll",
+            "$qtBinPath\libcrypto-3.dll",
+            "$qtBinPath\libcrypto-1_1.dll"
+          )
+          $sslPaths = @(
+            "$qtBinPath\libssl-3-x64.dll",
+            "$qtBinPath\libssl-1_1-x64.dll",
+            "$qtBinPath\libssl-3.dll",
+            "$qtBinPath\libssl-1_1.dll"
+          )
+          
+          $cryptoFound = $null
+          $sslFound = $null
+          
+          foreach ($path in $cryptoPaths) {
+            if (Test-Path $path) {
+              $cryptoFound = $path
+              break
+            }
+          }
+          
+          foreach ($path in $sslPaths) {
+            if (Test-Path $path) {
+              $sslFound = $path
+              break
+            }
+          }
+          
+          if ($cryptoFound) {
+            $cryptoName = Split-Path -Leaf $cryptoFound
+            Copy-Item $cryptoFound -Destination "$buildReleaseDir\$cryptoName" -Force
+            Write-Host "Copied OpenSSL crypto DLL: $cryptoName"
+          } else {
+            Write-Host "Warning: libcrypto DLL not found in Qt bin directory, skipping..."
+          }
+          
+          if ($sslFound) {
+            $sslName = Split-Path -Leaf $sslFound
+            Copy-Item $sslFound -Destination "$buildReleaseDir\$sslName" -Force
+            Write-Host "Copied OpenSSL ssl DLL: $sslName"
+          } else {
+            Write-Host "Warning: libssl DLL not found in Qt bin directory, skipping..."
+          }
+          
+          # Check if DLLs already exist in build directory (from windeployqt)
+          if (Test-Path "$buildReleaseDir\libcrypto*.dll") {
+            Write-Host "OpenSSL DLLs already present from windeployqt"
+          }
 
       - name: Download resources (geosite, geoip, etc.)
         if: success()
