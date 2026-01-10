@@ -167,6 +167,75 @@ jobs:
           $buildReleaseDir = "build\Release"
           & powershell -ExecutionPolicy Bypass -File "libs\download_resources.ps1" -DestDir $buildReleaseDir
 
+      - name: Download nekobox_core
+        if: success()
+        shell: pwsh
+        run: |
+          $buildReleaseDir = "build\Release"
+          Write-Host "Attempting to download nekobox_core.exe from MatsuriDayo/nekoray releases..."
+          
+          # Try to download from original MatsuriDayo/nekoray repository
+          # This avoids circular dependency issues with our own releases
+          $RepoOwner = "MatsuriDayo"
+          $RepoName = "nekoray"
+          $CoreExeName = "nekobox_core.exe"
+          $TempDir = Join-Path $env:TEMP "nekoray_core_download"
+          
+          if (Test-Path $TempDir) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+          
+          try {
+            # Get latest release from original repository
+            $ReleaseApiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
+            Write-Host "Fetching latest release info from $RepoOwner/$RepoName..."
+            $ReleaseInfo = Invoke-RestMethod -Uri $ReleaseApiUrl -UseBasicParsing -ErrorAction Stop
+            
+            # Find Windows release asset
+            $WindowsAsset = $null
+            foreach ($asset in $ReleaseInfo.assets) {
+              if ($asset.name -like "*windows*" -and $asset.name -like "*.zip") {
+                $WindowsAsset = $asset
+                break
+              }
+            }
+            
+            if (-not $WindowsAsset) {
+              throw "No Windows release zip found in latest release"
+            }
+            
+            $DownloadUrl = $WindowsAsset.browser_download_url
+            $ZipFileName = $WindowsAsset.name
+            $ZipPath = Join-Path $TempDir $ZipFileName
+            
+            Write-Host "Downloading: $DownloadUrl"
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath -UseBasicParsing -ErrorAction Stop
+            
+            Write-Host "Extracting nekobox_core.exe from zip..."
+            $ExtractDir = Join-Path $TempDir "extracted"
+            Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
+            
+            # Find nekobox_core.exe in extracted files
+            $CoreExePath = Get-ChildItem -Path $ExtractDir -Filter $CoreExeName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($CoreExePath) {
+              $DestExePath = Join-Path $buildReleaseDir $CoreExeName
+              Copy-Item -Path $CoreExePath.FullName -Destination $DestExePath -Force
+              Write-Host "Successfully downloaded nekobox_core.exe: $DestExePath"
+            } else {
+              throw "nekobox_core.exe not found in release zip"
+            }
+          } catch {
+            Write-Host "Warning: Failed to download nekobox_core.exe: $_" -ForegroundColor Yellow
+            Write-Host "The release zip will not include nekobox_core.exe. Users will need to download it separately." -ForegroundColor Yellow
+            Write-Host "You can manually download from: https://github.com/$RepoOwner/$RepoName/releases" -ForegroundColor Yellow
+          } finally {
+            if (Test-Path $TempDir) {
+              Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+
       - name: Package Windows release zip
         if: success() && github.event_name == 'push'
         shell: pwsh
