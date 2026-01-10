@@ -252,15 +252,48 @@ jobs:
           path: |
             build/Release/nekobox.exe
 
-      - name: Create GitHub Release for Windows build
+      - name: Install GitHub CLI (if not available)
         if: success() && github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
+        shell: pwsh
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            Write-Host "GitHub CLI not found, installing via winget..."
+            winget install --id GitHub.cli --source winget --accept-package-agreements --accept-source-agreements --silent
+            # Refresh PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          } else {
+            Write-Host "GitHub CLI already available"
+          }
+          gh --version
+
+      - name: Create GitHub Release for Windows build (marked as latest)
+        if: success() && github.event_name == 'push'
+        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ env.NEKORAY_VERSION }}-${{ github.run_number }}
-          name: Nekoray Windows v${{ env.NEKORAY_VERSION }} (build ${{ github.run_number }})
-          draft: false
-          prerelease: true
-          files: |
-            ${{ env.RELEASE_ZIP }}
+        run: |
+          # Authenticate GitHub CLI
+          echo $env:GITHUB_TOKEN | gh auth login --with-token
+          
+          $tagName = "v$env:NEKORAY_VERSION-${{ github.run_number }}"
+          $releaseName = "Nekoray Windows v$env:NEKORAY_VERSION (build ${{ github.run_number }})"
+          $releaseBody = "Automated Windows build`n`nCommit: ${{ github.sha }}`nBuild Number: ${{ github.run_number }}"
+          $zipFile = $env:RELEASE_ZIP
+          
+          Write-Host "Creating release: $tagName"
+          Write-Host "Release name: $releaseName"
+          Write-Host "Asset file: $zipFile"
+          
+          # Create release with --latest flag to ensure it's marked as latest
+          gh release create $tagName `
+            --title $releaseName `
+            --notes $releaseBody `
+            --latest `
+            $zipFile
+          
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Successfully created release $tagName and marked it as latest"
+          } else {
+            Write-Host "Error: Failed to create release" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
