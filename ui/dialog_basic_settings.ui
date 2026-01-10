@@ -1,4 +1,4 @@
-GG<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>DialogBasicSettings</class>
  <widget class="QDialog" name="DialogBasicSettings">
@@ -322,17 +322,17 @@ GG<?xml version="1.0" encoding="UTF-8"?>
               </item>
               <item>
                <property name="text">
-                <string notr="true">简体中文</string>
+                <string notr="true">Simplified Chinese</string>
                </property>
               </item>
               <item>
                <property name="text">
-                <string notr="true">فارسی</string>
+                <string notr="true">賮丕乇爻蹖</string>
                </property>
               </item>
               <item>
                <property name="text">
-                <string notr="true">Русский</string>
+                <string notr="true">袪褍褋褋泻懈泄</string>
                </property>
               </item>
              </widget>
@@ -778,3 +778,4 @@ GG<?xml version="1.0" encoding="UTF-8"?>
   </connection>
  </connections>
 </ui>
+
