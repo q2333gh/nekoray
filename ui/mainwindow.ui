@@ -95,8 +95,11 @@
 
       <item>
        <widget class="QToolButton" name="toolButton_document">
-        <property name="text">
-         <string>Document</string>
+       <property name="text">
+        <string>Document</string>
+       </property>
+        <property name="visible">
+         <bool>false</bool>
         </property>
         <property name="icon">
          <iconset theme="b-dialog-question">
@@ -118,8 +121,11 @@
       </item>
       <item>
        <widget class="QToolButton" name="toolButton_update">
-        <property name="text">
-         <string>Update</string>
+       <property name="text">
+        <string>Update</string>
+       </property>
+        <property name="visible">
+         <bool>false</bool>
         </property>
         <property name="icon">
          <iconset theme="b-system-software-update">

@@ -1,6 +1,7 @@
 qt_lib/
 *.tar.gz
 
+build_ninja/
 
 # This file is used to ignore files which are generated
 # ----------------------------------------------------------------------------
