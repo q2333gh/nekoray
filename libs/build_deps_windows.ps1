@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 function Import-VsDevCmdEnv {
     param([string]$VsDevCmd)
-    $EnvOutput = & cmd /c "`"$VsDevCmd`" -no_logo && set"
+    $EnvOutput = & cmd /c "`"$VsDevCmd`" -no_logo -arch=amd64 -host_arch=amd64 && set"
     foreach ($line in $EnvOutput) {
         if ($line -match "^(.*?)=(.*)$") {
             Set-Item -Path ("env:" + $matches[1]) -Value $matches[2]

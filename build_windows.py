@@ -61,6 +61,14 @@ def require_path(path: Path, message: str) -> Path:
     return path
 
 
+def prepare_x64_env(base_env: dict) -> dict:
+    env = base_env.copy()
+    env["VSCMD_ARG_TGT_ARCH"] = "x64"
+    env["VSCMD_ARG_HOST_ARCH"] = "x64"
+    env["PreferredToolArchitecture"] = "x64"
+    return env
+
+
 def detect_generator() -> tuple[bool, str, dict]:
     env = os.environ.copy()
     ninja_path = shutil.which("ninja")
@@ -129,10 +137,10 @@ def ensure_dependencies(
             error("ZXing config missing in DepsRoot. Populate prebuilt deps or use default cache.")
         sys.exit(1)
 
-    if missing_yaml:
-        ensure_dependency(yaml_configs, deps_script, timeout, env)
-    if missing_zxing:
-        ensure_dependency(zxing_configs, deps_script, timeout, env)
+        if missing_yaml:
+            ensure_dependency(yaml_configs, deps_script, timeout, env, force_x64=True)
+        if missing_zxing:
+            ensure_dependency(zxing_configs, deps_script, timeout, env, force_x64=True)
 
 
 def ensure_protobuf(deps_root: Path, timeout: int, env: dict, repo_root: Path) -> None:
@@ -266,12 +274,17 @@ def call_ps_script(script: Path, timeout: int, env: dict | None = None) -> None:
     run_command(["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script)], timeout=timeout, env=env)
 
 
-def ensure_dependency(configs: list[Path], script: Path, timeout: int, env: dict | None = None) -> None:
+def ensure_dependency(
+    configs: list[Path], script: Path, timeout: int, env: dict | None = None, force_x64: bool = False
+) -> None:
     if configs and any_path(configs):
         return
     info(f"Dependency missing; invoking {script.name}...")
     try:
-        call_ps_script(script, timeout, env=env)
+        target_env = env
+        if force_x64 and env is not None:
+            target_env = prepare_x64_env(env)
+        call_ps_script(script, timeout, env=target_env)
     except subprocess.TimeoutExpired:
         error(f"Dependency build timed out after {timeout}s.")
         sys.exit(1)
@@ -406,7 +419,7 @@ def main() -> None:
     ensure_dependencies(deps_root, default_deps, repo_root, args.DepsBuildTimeoutSec, env)
 
     if not args.DisableGrpc:
-        ensure_protobuf(deps_root, args.DepsBuildTimeoutSec, env, repo_root)
+        ensure_protobuf(deps_root, args.DepsBuildTimeoutSec, prepare_x64_env(env), repo_root)
     else:
         info("gRPC disabled; skipping protobuf build.")
 

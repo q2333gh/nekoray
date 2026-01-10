@@ -60,7 +60,7 @@ jobs:
           cmake --build build --config Release
         shell: cmd
 
-      - name: Get commit date for version
+      - name: Get commit date for versionni
         if: success()
         shell: pwsh
         run: |
