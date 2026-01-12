@@ -68,9 +68,6 @@ public:
     void RegisterHotkey(bool unregister);
 
     bool StopVPNProcess(bool unconditional = false);
-    
-    // Get menu builder for access from other files
-    MenuBuilder* menuBuilder() const { return m_menuBuilder; }
 
 signals:
 
@@ -145,6 +142,7 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    MenuBuilder *m_menuBuilder = nullptr;
     QSystemTrayIcon *tray;
     QShortcut *shortcut_ctrl_f = new QShortcut(QKeySequence("Ctrl+F"), this);
     QShortcut *shortcut_esc = new QShortcut(QKeySequence("Esc"), this);
@@ -202,6 +200,9 @@ private:
     static void stop_core_daemon();
 
     void CheckUpdate();
+    
+    // Get menu builder for access from other files
+    MenuBuilder* menuBuilder() const { return m_menuBuilder; }
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;

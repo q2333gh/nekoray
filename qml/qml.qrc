@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>main.qml</file>
+        <file>components/ProxyItem.qml</file>
+        <file>components/GroupItem.qml</file>
+        <file>components/ProxyTable.qml</file>
+        <file>dialogs/BasicSettingsDialog.qml</file>
+        <file>dialogs/HotkeyDialog.qml</file>
+        <file>dialogs/ManageGroupsDialog.qml</file>
+        <file>dialogs/ManageRoutesDialog.qml</file>
+        <file>dialogs/VPNSettingsDialog.qml</file>
+        <file>edit/EditProfileDialog.qml</file>
+        <file>edit/EditVMess.qml</file>
+        <file>edit/EditTrojanVLESS.qml</file>
+        <file>edit/EditShadowSocks.qml</file>
+        <file>pages/ProxyListPage.qml</file>
+        <file>pages/LogPage.qml</file>
+        <file>pages/ConnectionPage.qml</file>
+        <file>theme/Theme.qml</file>
+    </qresource>
+</RCC>

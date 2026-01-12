@@ -562,6 +562,8 @@ def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
     cmd = [
         str(watchdog),
         "--release",
+        "--qmldir",
+        str(Path("qml").resolve()),
         "--no-translations",
         "--no-compiler-runtime",
         "--no-system-d3d-compiler",

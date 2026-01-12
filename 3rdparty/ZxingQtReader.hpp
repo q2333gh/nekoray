@@ -446,7 +446,9 @@ inline void registerQmlAndMetaTypes()
 
 	qmlRegisterUncreatableMetaObject(
 		ZXingQt::staticMetaObject, "ZXing", 1, 0, "ZXing", "Access to enums & flags only");
+#ifdef QT_MULTIMEDIA_LIB
 	qmlRegisterType<ZXingQt::BarcodeReader>("ZXing", 1, 0, "BarcodeReader");
+#endif
 }
 
 } // namespace ZXingQt

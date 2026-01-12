@@ -49,18 +49,17 @@ if (NEKO_UNITY_BUILD)
     message(STATUS "Unity builds enabled (batch size: ${CMAKE_UNITY_BUILD_BATCH_SIZE})")
 endif ()
 
-# Find Qt
+# Find Qt 6
 if (NOT QT_VERSION_MAJOR)
-    set(QT_VERSION_MAJOR 5)
+    set(QT_VERSION_MAJOR 6)
 endif ()
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Svg LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Network Svg LinguistTools)
 
 if (NKR_CROSS)
-    set_property(TARGET Qt5::moc PROPERTY IMPORTED_LOCATION /usr/bin/moc)
-    set_property(TARGET Qt5::uic PROPERTY IMPORTED_LOCATION /usr/bin/uic)
-    set_property(TARGET Qt5::rcc PROPERTY IMPORTED_LOCATION /usr/bin/rcc)
-    set_property(TARGET Qt5::lrelease PROPERTY IMPORTED_LOCATION /usr/bin/lrelease)
-    set_property(TARGET Qt5::lupdate PROPERTY IMPORTED_LOCATION /usr/bin/lupdate)
+    set_property(TARGET Qt${QT_VERSION_MAJOR}::moc PROPERTY IMPORTED_LOCATION /usr/bin/moc)
+    set_property(TARGET Qt${QT_VERSION_MAJOR}::rcc PROPERTY IMPORTED_LOCATION /usr/bin/rcc)
+    set_property(TARGET Qt${QT_VERSION_MAJOR}::lrelease PROPERTY IMPORTED_LOCATION /usr/bin/lrelease)
+    set_property(TARGET Qt${QT_VERSION_MAJOR}::lupdate PROPERTY IMPORTED_LOCATION /usr/bin/lupdate)
 endif ()
 
 #### Platform Variables ####
@@ -197,85 +196,30 @@ set(PROJECT_SOURCES
         ui/ThemeManager.cpp
         ui/Icon.cpp
 
-        ui/mainwindow_grpc.cpp
-        ui/mainwindow.cpp
+        # QML Models and Controllers
+        ui/qml/ProfileModel.cpp
+        ui/qml/ProfileModel.hpp
+        ui/qml/GroupModel.cpp
+        ui/qml/GroupModel.hpp
+        ui/qml/MainWindowController.cpp
+        ui/qml/MainWindowController.hpp
+        ui/qml/MainWindowAdapter.cpp
+        ui/qml/MainWindowAdapter.hpp
+        ui/qml/BasicSettingsController.cpp
+        ui/qml/BasicSettingsController.hpp
+        ui/qml/EditProfileController.cpp
+        ui/qml/EditProfileController.hpp
+        ui/qml/QmlTypes.cpp
+        ui/qml/QmlTypes.hpp
+
+        # Legacy widget interface stub to satisfy existing backend calls
+        ui/mainwindow_interface.h
         ui/mainwindow.h
-        ui/mainwindow_menubuilder.cpp
-        ui/mainwindow_menubuilder.h
-        ui/mainwindow.ui
-        ui/mainwindow_dialog.cpp
-        ui/mainwindow_menu.cpp
-        ui/mainwindow_proxy_list.cpp
-        ui/mainwindow_status.cpp
-        ui/mainwindow_log.cpp
-        ui/mainwindow_connection.cpp
-        ui/mainwindow_hotkey.cpp
-        ui/mainwindow_vpn.cpp
-
-        ui/edit/dialog_edit_profile.h
-        ui/edit/dialog_edit_profile.cpp
-        ui/edit/dialog_edit_profile.ui
-        ui/edit/dialog_edit_group.h
-        ui/edit/dialog_edit_group.cpp
-        ui/edit/dialog_edit_group.ui
-
-        ui/edit/edit_chain.h
-        ui/edit/edit_chain.cpp
-        ui/edit/edit_chain.ui
-        ui/edit/edit_socks_http.h
-        ui/edit/edit_socks_http.cpp
-        ui/edit/edit_socks_http.ui
-        ui/edit/edit_shadowsocks.h
-        ui/edit/edit_shadowsocks.cpp
-        ui/edit/edit_shadowsocks.ui
-        ui/edit/edit_vmess.h
-        ui/edit/edit_vmess.cpp
-        ui/edit/edit_vmess.ui
-        ui/edit/edit_trojan_vless.h
-        ui/edit/edit_trojan_vless.cpp
-        ui/edit/edit_trojan_vless.ui
-
-        ui/edit/edit_naive.h
-        ui/edit/edit_naive.cpp
-        ui/edit/edit_naive.ui
-
-        ui/edit/edit_quic.h
-        ui/edit/edit_quic.cpp
-        ui/edit/edit_quic.ui
-
-        ui/edit/edit_custom.h
-        ui/edit/edit_custom.cpp
-        ui/edit/edit_custom.ui
-
-        ui/dialog_basic_settings.cpp
-        ui/dialog_basic_settings.h
-        ui/dialog_basic_settings.ui
-
-        ui/dialog_manage_groups.cpp
-        ui/dialog_manage_groups.h
-        ui/dialog_manage_groups.ui
-
-        ui/dialog_manage_routes.cpp
-        ui/dialog_manage_routes.h
-        ui/dialog_manage_routes.ui
-
-        ui/dialog_vpn_settings.cpp
-        ui/dialog_vpn_settings.h
-        ui/dialog_vpn_settings.ui
-
-        ui/dialog_hotkey.cpp
-        ui/dialog_hotkey.h
-        ui/dialog_hotkey.ui
-
-        ui/widget/ProxyItem.cpp
-        ui/widget/ProxyItem.h
-        ui/widget/ProxyItem.ui
-        ui/widget/GroupItem.cpp
-        ui/widget/GroupItem.h
-        ui/widget/GroupItem.ui
+        ui/mainwindow_stub.cpp
 
         res/neko.qrc
         res/theme/feiyangqingyun/qss.qrc
+        qml/qml.qrc
         ${QV2RAY_RC}
 )
 
@@ -285,6 +229,7 @@ if (${QT_VERSION_MAJOR} GREATER_EQUAL 6)
             MANUAL_FINALIZATION
             ${PROJECT_SOURCES}
     )
+    set_target_properties(nekobox PROPERTIES AUTOUIC ON)
     # Define target properties for Android with Qt 6 as:
     #    set_property(TARGET nekobox APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
     #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
@@ -305,13 +250,14 @@ endif ()
 
 # Target
 
-set_property(TARGET nekobox PROPERTY AUTOUIC ON)
 set_property(TARGET nekobox PROPERTY AUTOMOC ON)
 set_property(TARGET nekobox PROPERTY AUTORCC ON)
 
 set_target_properties(nekobox PROPERTIES
         WIN32_EXECUTABLE TRUE
 )
+
+target_compile_definitions(nekobox PRIVATE MW_INTERFACE)
 
 # Target Source Translations
 
@@ -335,7 +281,7 @@ target_sources(nekobox PRIVATE ${CMAKE_BINARY_DIR}/translations.qrc)
 # Target Link
 
 target_link_libraries(nekobox PRIVATE
-        Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::Svg
+        Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Qml Qt${QT_VERSION_MAJOR}::Quick Qt${QT_VERSION_MAJOR}::QuickControls2 Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::Svg
         Threads::Threads
         ${NKR_EXTERNAL_TARGETS}
         ${PLATFORM_LIBRARIES}

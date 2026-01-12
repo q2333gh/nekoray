@@ -1,26 +1,39 @@
 #include <csignal>
 
 #include <QApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QDir>
 #include <QTranslator>
-#include <QMessageBox>
 #include <QStandardPaths>
 #include <QLocalSocket>
 #include <QLocalServer>
 #include <QThread>
+#include <QFile>
+#include <QFileInfo>
+#include <QIcon>
+#include <QLocale>
+#include <QDebug>
+#include <QVariant>
 
 #include "3rdparty/RunGuard.hpp"
 #include "main/NekoGui.hpp"
-
 #include "ui/mainwindow_interface.h"
+#include "ui/qml/QmlTypes.hpp"
+#include "ui/qml/MainWindowController.hpp"
+#include "db/Database.hpp"
 
 #ifdef Q_OS_WIN
 #include "sys/windows/MiniDump.h"
 #endif
 
+MainWindowController* g_mainController = nullptr;
+
 void signal_handler(int signum) {
     if (qApp) {
-        GetMainWindow()->on_commitDataRequest();
+        if (g_mainController) {
+            g_mainController->commitDataRequest();
+        }
         qApp->exit();
     }
 }
@@ -43,7 +56,7 @@ void loadTranslate(const QString& locale) {
     if (trans->load(":/translations/" + locale + ".qm")) {
         QCoreApplication::installTranslator(trans);
     }
-    if (trans_qt->load(QApplication::applicationDirPath() + "/qtbase_" + locale + ".qm")) {
+    if (trans_qt->load(QGuiApplication::applicationDirPath() + "/qtbase_" + locale + ".qm")) {
         QCoreApplication::installTranslator(trans_qt);
     }
 }
@@ -56,21 +69,13 @@ int main(int argc, char* argv[]) {
     Windows_SetCrashHandler();
 #endif
 
-    // pre-init QApplication
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-    QApplication::setAttribute(Qt::AA_DisableWindowContextHelpButton);
-#endif
-#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
-    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-#endif
+    // pre-init QGuiApplication
     QApplication::setQuitOnLastWindowClosed(false);
-
-
     
     auto preQApp = new QApplication(argc, argv);
 
     // Clean
-    QDir::setCurrent(QApplication::applicationDirPath());
+    QDir::setCurrent(QGuiApplication::applicationDirPath());
     if (QFile::exists("updater.old")) {
         QFile::remove("updater.old");
     }
@@ -81,7 +86,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Flags
-    NekoGui::dataStore->argv = QApplication::arguments();
+    NekoGui::dataStore->argv = QGuiApplication::arguments();
     if (NekoGui::dataStore->argv.contains("-many")) NekoGui::dataStore->flag_many = true;
     if (NekoGui::dataStore->argv.contains("-appdata")) {
         NekoGui::dataStore->flag_use_appdata = true;
@@ -102,9 +107,9 @@ int main(int argc, char* argv[]) {
 #endif
 
     // dirs & clean
-    auto wd = QDir(QApplication::applicationDirPath());
+    auto wd = QDir(QGuiApplication::applicationDirPath());
     if (NekoGui::dataStore->flag_use_appdata) {
-        QApplication::setApplicationName("nekoray");
+        QGuiApplication::setApplicationName("nekoray");
         if (!NekoGui::dataStore->appdataDir.isEmpty()) {
             wd.setPath(NekoGui::dataStore->appdataDir);
         } else {
@@ -116,9 +121,9 @@ int main(int argc, char* argv[]) {
     QDir::setCurrent(wd.absoluteFilePath("config"));
     QDir("temp").removeRecursively();
 
-    // init QApplication
+    // init QGuiApplication
     delete preQApp;
-    QApplication a(argc, argv);
+    QApplication app(argc, argv);
 
     // dispatchers
     DS_cores = new QThread;
@@ -143,7 +148,9 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         // Some Bad System
-        QMessageBox::warning(nullptr, "NekoGui", "RunGuard disallow to run, use -many to force start.");
+        // Note: QMessageBox requires QApplication, but we're using QGuiApplication
+        // For QML, we'll handle this differently
+        qWarning() << "RunGuard disallow to run, use -many to force start.";
         return 0;
     }
     MF_release_runguard = [&] { guard.release(); };
@@ -174,7 +181,7 @@ int main(int argc, char* argv[]) {
         dir_success &= dir.mkdir(ROUTES_PREFIX_NAME);
     }
     if (!dir_success) {
-        QMessageBox::warning(nullptr, "Error", "No permission to write " + dir.absolutePath());
+        qWarning() << "No permission to write" << dir.absolutePath();
         return 1;
     }
 
@@ -184,7 +191,7 @@ int main(int argc, char* argv[]) {
             NekoGui::dataStore->fn = "groups/nekobox.json";
             break;
         default:
-            MessageBoxWarning("Error", "Unknown coreType.");
+            qWarning() << "Unknown coreType.";
             return 0;
     }
     auto isLoaded = NekoGui::dataStore->Load();
@@ -232,14 +239,45 @@ int main(int argc, char* argv[]) {
     auto server_name = LOCAL_SERVER_PREFIX + Int2String(guard_data_in);
     QLocalServer::removeServer(server_name);
     server.listen(server_name);
-    QObject::connect(&server, &QLocalServer::newConnection, &a, [&] {
+    QObject::connect(&server, &QLocalServer::newConnection, &app, [&] {
         auto socket = server.nextPendingConnection();
         qDebug() << "nextPendingConnection:" << server_name << socket;
         socket->deleteLater();
-        // raise main window
-        MW_dialog_message("", "Raise");
+        // TODO: raise main window in QML
     });
 
+    // Initialize MainWindow (hidden) for core functionality
+    // TODO: Eventually remove this dependency
     UI_InitMainWindow();
-    return QApplication::exec();
+    if (GetMainWindow()) {
+        GetMainWindow()->hide(); // Hide the widget, use QML UI instead
+    }
+
+    // Register QML types
+    registerQmlTypes();
+
+    // Create main controller
+    g_mainController = new MainWindowController(&app);
+
+    // Create QML engine
+    QQmlApplicationEngine engine;
+    
+    // Set context properties
+    engine.rootContext()->setContextProperty("mainController", g_mainController);
+    QVariantMap dataStoreContext;
+    dataStoreContext.insert("flag_tray", NekoGui::dataStore->flag_tray);
+    dataStoreContext.insert("start_minimal", NekoGui::dataStore->start_minimal);
+    engine.rootContext()->setContextProperty("dataStore", dataStoreContext);
+
+    // Load main QML file
+    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
+                     &app, [url](QObject *obj, const QUrl &objUrl) {
+        if (!obj && url == objUrl)
+            QCoreApplication::exit(-1);
+    }, Qt::QueuedConnection);
+    
+    engine.load(url);
+
+    return app.exec();
 }
