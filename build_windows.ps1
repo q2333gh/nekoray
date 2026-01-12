@@ -11,7 +11,10 @@
     -Config           CMake configuration (Debug / Release / RelWithDebInfo / MinSizeRel)
     -DepsRoot         Prebuilt dependency root (default: .\libs\deps\built or .\libs\deps\package)
     -DisableGrpc      Disable gRPC and skip protobuf build
-    -DepsBuildTimeoutSec Timeout for dependency builds in seconds (default: 120)
+    -DisableYaml      Disable yaml-cpp dependency
+    -DisableZxing     Disable ZXing dependency
+    -DisableQHotkey   Disable QHotkey dependency
+    -DepsBuildTimeoutSec Timeout for dependency builds in seconds (default: 600)
     -DownloadCore     Download prebuilt nekobox_core from GitHub Releases
     -DownloadResources Download geosite/geodb resources (default: true)
 
@@ -29,6 +32,9 @@ param(
     [string]$Config = "Release",
     [string]$DepsRoot = "",
     [switch]$DisableGrpc = $false,
+    [switch]$DisableYaml = $false,
+    [switch]$DisableZxing = $false,
+    [switch]$DisableQHotkey = $false,
     [int]$DepsBuildTimeoutSec = 600,
     [switch]$DownloadCore = $false,
     [switch]$DownloadResources = $true
@@ -174,70 +180,87 @@ if (-not $DepsRoot -or $DepsRoot.Trim() -eq "") {
     }
 }
 
-if (-not (Test-Path -LiteralPath $DepsRoot)) {
-    Write-ErrorMsg "DepsRoot '$DepsRoot' does not exist. Please set -DepsRoot to a valid prebuilt dependency directory."
-    exit 1
+# Only check DepsRoot if we need dependencies
+$NeedDeps = -not ($DisableYaml -and $DisableZxing -and $DisableGrpc)
+if ($NeedDeps) {
+    if (-not (Test-Path -LiteralPath $DepsRoot)) {
+        Write-ErrorMsg "DepsRoot '$DepsRoot' does not exist. Please set -DepsRoot to a valid prebuilt dependency directory."
+        exit 1
+    }
+    Write-Info "Using DepsRoot: $DepsRoot"
+} else {
+    Write-Info "All external dependencies disabled, skipping DepsRoot check."
 }
 
-Write-Info "Using DepsRoot: $DepsRoot"
-$YamlConfigs = @(
-    (Join-Path $DepsRoot "lib\cmake\yaml-cpp\yaml-cpp-config.cmake"),
-    (Join-Path $DepsRoot "lib\cmake\yaml-cpp\yaml-cppConfig.cmake"),
-    (Join-Path $DepsRoot "cmake\yaml-cpp\yaml-cpp-config.cmake"),
-    (Join-Path $DepsRoot "cmake\yaml-cpp\yaml-cppConfig.cmake"),
-    (Join-Path $DepsRoot "share\cmake\yaml-cpp\yaml-cpp-config.cmake"),
-    (Join-Path $DepsRoot "share\cmake\yaml-cpp\yaml-cppConfig.cmake"),
-    (Join-Path $DepsRoot "share\yaml-cpp\yaml-cpp-config.cmake"),
-    (Join-Path $DepsRoot "share\yaml-cpp\yaml-cppConfig.cmake")
-)
-$ZxingConfigs = @(
-    (Join-Path $DepsRoot "lib\cmake\ZXing\ZXingConfig.cmake"),
-    (Join-Path $DepsRoot "lib\cmake\ZXing\ZXing-config.cmake"),
-    (Join-Path $DepsRoot "cmake\ZXing\ZXingConfig.cmake"),
-    (Join-Path $DepsRoot "cmake\ZXing\ZXing-config.cmake"),
-    (Join-Path $DepsRoot "share\cmake\ZXing\ZXingConfig.cmake"),
-    (Join-Path $DepsRoot "share\cmake\ZXing\ZXing-config.cmake"),
-    (Join-Path $DepsRoot "share\cmake\zxing-cpp\zxing-cpp-config.cmake"),
-    (Join-Path $DepsRoot "share\zxing-cpp\zxing-cpp-config.cmake"),
-    (Join-Path $DepsRoot "share\ZXing\ZXingConfig.cmake")
-)
-if (-not (Test-AnyPath -Paths $YamlConfigs)) {
-    if (([IO.Path]::GetFullPath($DepsRoot)) -eq ([IO.Path]::GetFullPath($DefaultDepsRoot))) {
-        $BuildDepsScript = Join-Path $RepoRoot "libs\build_deps_windows.ps1"
-        if (Test-Path -LiteralPath $BuildDepsScript) {
-            Write-Info "yaml-cpp missing; building dependencies..."
-            $Ok = Invoke-ProcessWithTimeout -FilePath "powershell" -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $BuildDepsScript) -TimeoutSec $DepsBuildTimeoutSec
-            if (-not $Ok) {
-                Write-ErrorMsg "Dependency build timed out after ${DepsBuildTimeoutSec}s."
+# Check yaml-cpp only if not disabled
+if (-not $DisableYaml) {
+    $YamlConfigs = @(
+        (Join-Path $DepsRoot "lib\cmake\yaml-cpp\yaml-cpp-config.cmake"),
+        (Join-Path $DepsRoot "lib\cmake\yaml-cpp\yaml-cppConfig.cmake"),
+        (Join-Path $DepsRoot "cmake\yaml-cpp\yaml-cpp-config.cmake"),
+        (Join-Path $DepsRoot "cmake\yaml-cpp\yaml-cppConfig.cmake"),
+        (Join-Path $DepsRoot "share\cmake\yaml-cpp\yaml-cpp-config.cmake"),
+        (Join-Path $DepsRoot "share\cmake\yaml-cpp\yaml-cppConfig.cmake"),
+        (Join-Path $DepsRoot "share\yaml-cpp\yaml-cpp-config.cmake"),
+        (Join-Path $DepsRoot "share\yaml-cpp\yaml-cppConfig.cmake")
+    )
+    if (-not (Test-AnyPath -Paths $YamlConfigs)) {
+        if (([IO.Path]::GetFullPath($DepsRoot)) -eq ([IO.Path]::GetFullPath($DefaultDepsRoot))) {
+            $BuildDepsScript = Join-Path $RepoRoot "libs\build_deps_windows.ps1"
+            if (Test-Path -LiteralPath $BuildDepsScript) {
+                Write-Info "yaml-cpp missing; building dependencies..."
+                $Ok = Invoke-ProcessWithTimeout -FilePath "powershell" -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $BuildDepsScript) -TimeoutSec $DepsBuildTimeoutSec
+                if (-not $Ok) {
+                    Write-ErrorMsg "Dependency build timed out after ${DepsBuildTimeoutSec}s."
+                    exit 1
+                }
+            } else {
+                Write-ErrorMsg "yaml-cpp config not found in DepsRoot '$DepsRoot' and build_deps_windows.ps1 is missing."
                 exit 1
             }
         } else {
-            Write-ErrorMsg "yaml-cpp config not found in DepsRoot '$DepsRoot' and build_deps_windows.ps1 is missing."
+            Write-ErrorMsg "yaml-cpp config not found in DepsRoot '$DepsRoot'. Provide a prebuilt deps cache with yaml-cpp."
             exit 1
         }
-    } else {
-        Write-ErrorMsg "yaml-cpp config not found in DepsRoot '$DepsRoot'. Provide a prebuilt deps cache with yaml-cpp."
-        exit 1
     }
+} else {
+    Write-Info "yaml-cpp disabled, skipping check."
 }
-if (-not (Test-AnyPath -Paths $ZxingConfigs)) {
-    if (([IO.Path]::GetFullPath($DepsRoot)) -eq ([IO.Path]::GetFullPath($DefaultDepsRoot))) {
-        $BuildDepsScript = Join-Path $RepoRoot "libs\build_deps_windows.ps1"
-        if (Test-Path -LiteralPath $BuildDepsScript) {
-            Write-Info "ZXing missing; building dependencies..."
-            $Ok = Invoke-ProcessWithTimeout -FilePath "powershell" -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $BuildDepsScript) -TimeoutSec $DepsBuildTimeoutSec
-            if (-not $Ok) {
-                Write-ErrorMsg "Dependency build timed out after ${DepsBuildTimeoutSec}s."
+
+# Check ZXing only if not disabled
+if (-not $DisableZxing) {
+    $ZxingConfigs = @(
+        (Join-Path $DepsRoot "lib\cmake\ZXing\ZXingConfig.cmake"),
+        (Join-Path $DepsRoot "lib\cmake\ZXing\ZXing-config.cmake"),
+        (Join-Path $DepsRoot "cmake\ZXing\ZXingConfig.cmake"),
+        (Join-Path $DepsRoot "cmake\ZXing\ZXing-config.cmake"),
+        (Join-Path $DepsRoot "share\cmake\ZXing\ZXingConfig.cmake"),
+        (Join-Path $DepsRoot "share\cmake\ZXing\ZXing-config.cmake"),
+        (Join-Path $DepsRoot "share\cmake\zxing-cpp\zxing-cpp-config.cmake"),
+        (Join-Path $DepsRoot "share\zxing-cpp\zxing-cpp-config.cmake"),
+        (Join-Path $DepsRoot "share\ZXing\ZXingConfig.cmake")
+    )
+    if (-not (Test-AnyPath -Paths $ZxingConfigs)) {
+        if (([IO.Path]::GetFullPath($DepsRoot)) -eq ([IO.Path]::GetFullPath($DefaultDepsRoot))) {
+            $BuildDepsScript = Join-Path $RepoRoot "libs\build_deps_windows.ps1"
+            if (Test-Path -LiteralPath $BuildDepsScript) {
+                Write-Info "ZXing missing; building dependencies..."
+                $Ok = Invoke-ProcessWithTimeout -FilePath "powershell" -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", $BuildDepsScript) -TimeoutSec $DepsBuildTimeoutSec
+                if (-not $Ok) {
+                    Write-ErrorMsg "Dependency build timed out after ${DepsBuildTimeoutSec}s."
+                    exit 1
+                }
+            } else {
+                Write-ErrorMsg "ZXing config not found in DepsRoot '$DepsRoot' and build_deps_windows.ps1 is missing."
                 exit 1
             }
         } else {
-            Write-ErrorMsg "ZXing config not found in DepsRoot '$DepsRoot' and build_deps_windows.ps1 is missing."
+            Write-ErrorMsg "ZXing config not found in DepsRoot '$DepsRoot'. Provide a prebuilt deps cache with ZXing."
             exit 1
         }
-    } else {
-        Write-ErrorMsg "ZXing config not found in DepsRoot '$DepsRoot'. Provide a prebuilt deps cache with ZXing."
-        exit 1
     }
+} else {
+    Write-Info "ZXing disabled, skipping check."
 }
 
 # Build Protobuf if gRPC is enabled
@@ -264,18 +287,30 @@ if (-not $DisableGrpc) {
     Write-Info "gRPC disabled (skip protobuf build)."
 }
 
-Write-Info "Configuring CMake (Config=$Config, QT_VERSION_MAJOR=6, gRPC enabled)..."
+$GrpcStatus = if ($DisableGrpc) { "disabled" } else { "enabled" }
+Write-Info "Configuring CMake (Config=$Config, QT_VERSION_MAJOR=6, gRPC=$GrpcStatus)..."
 
 $CmakeArgs = @(
     "-S", $RepoRoot,
     "-B", $BuildDir,
     "-DQT_VERSION_MAJOR=6",
-    "-DNKR_LIBS=$DepsRoot",
     "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false",
     "-DCMAKE_PREFIX_PATH=$QtRoot"
 )
 if ($DisableGrpc) {
     $CmakeArgs += "-DNKR_NO_GRPC=ON"
+}
+if ($DisableYaml) {
+    $CmakeArgs += "-DNKR_NO_YAML=ON"
+}
+if ($DisableZxing) {
+    $CmakeArgs += "-DNKR_NO_ZXING=ON"
+}
+if ($DisableQHotkey) {
+    $CmakeArgs += "-DNKR_NO_QHOTKEY=ON"
+}
+if ($DepsRoot -and $DepsRoot.Trim() -ne "" -and -not $DisableYaml -and -not $DisableZxing) {
+    $CmakeArgs += "-DNKR_LIBS=$DepsRoot"
 }
 if ($Generator) {
     $CmakeArgs = @("-G", $Generator) + $CmakeArgs
