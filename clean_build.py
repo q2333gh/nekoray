@@ -37,6 +37,11 @@ def clean_build_tree(clean_deps: bool) -> None:
         deps_path = ROOT / "libs" / "deps" / "built"
         if deps_path.exists():
             remove_path(deps_path, is_dir=True)
+        
+        # Also clear cache manifest
+        cache_manifest = deps_path / ".cache_manifest.json"
+        if cache_manifest.exists():
+            remove_path(cache_manifest, is_dir=False)
 
 
 def run_build_script(passthru: list[str]) -> None:

@@ -37,6 +37,21 @@
 - All dependencies are cached to `libs/deps/built`.
 - Subsequent builds re-use downloaded/built content managed in `build_windows.py` (lines 154–232).
 
+### Release Cache Management System
+- **Cache Manifest**: `libs/deps/built/.cache_manifest.json`
+  - Records version tags, cache timestamps, and validation status for each dependency
+  - Automatically updated after successful builds
+  - Cleared when using `clean_build.py --clean-deps`
+- **Cache Verification**:
+  1. Checks manifest for matching version tags
+  2. Verifies actual cache files exist
+  3. Rebuilds and updates manifest if verification fails
+- **Benefits**:
+  - Version control: Ensures correct dependency versions
+  - Fast validation: Avoids unnecessary rebuilds
+  - Traceability: Records cache build times for debugging
+  - Consistency: Keeps manifest and file state in sync
+
 **依赖报告总结**
 
 * **工具链**
@@ -69,3 +84,18 @@
 * **缓存机制**
 
   * 所有依赖缓存于 `libs/deps/built`，后续构建复用已下载/编译内容。
+  * **Release 缓存管理系统**：
+    * 缓存清单文件：`libs/deps/built/.cache_manifest.json`
+    * 记录每个依赖的版本标签、缓存时间、验证状态
+    * 支持缓存验证：通过版本标签和文件存在性双重验证
+    * 自动更新：构建完成后自动更新缓存清单
+    * 清理支持：`clean_build.py --clean-deps` 会同时清理缓存清单
+    * 缓存验证流程：
+      1. 首先检查缓存清单中的版本标签是否匹配
+      2. 验证缓存文件是否实际存在
+      3. 如果验证失败，重新构建并更新清单
+    * 优势：
+      - 版本控制：确保使用正确版本的依赖
+      - 快速验证：避免不必要的重新构建
+      - 可追溯性：记录缓存构建时间，便于调试
+      - 一致性：清单和实际文件状态保持一致

@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 CONFIG = "Release"
@@ -17,6 +19,7 @@ DEPS_CACHE_DIR = Path("libs/deps")
 DEPS_BUILD_TIMEOUT = 900
 DOWNLOAD_TIMEOUT = 300
 CORE_URL = "https://github.com/MatsuriDayo/nekoray/releases"
+CACHE_MANIFEST = DEPS_ROOT / ".cache_manifest.json"
 
 
 def info(msg: str) -> None:
@@ -60,6 +63,71 @@ def any_path(paths: list[Path]) -> bool:
     return any(path.exists() for path in paths)
 
 
+def load_cache_manifest() -> dict:
+    """Load cache manifest if it exists."""
+    if CACHE_MANIFEST.exists():
+        try:
+            with open(CACHE_MANIFEST, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def save_cache_manifest(manifest: dict) -> None:
+    """Save cache manifest."""
+    CACHE_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    with open(CACHE_MANIFEST, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2, ensure_ascii=False)
+
+
+def update_cache_entry(name: str, tag: str, configs: list[Path], deps_root: Path) -> None:
+    """Update cache manifest entry for a library."""
+    manifest = load_cache_manifest()
+    if "dependencies" not in manifest:
+        manifest["dependencies"] = {}
+    
+    # Verify cache is actually present
+    cache_valid = any_path([deps_root / cfg for cfg in configs])
+    
+    manifest["dependencies"][name] = {
+        "tag": tag,
+        "cached_at": datetime.now().isoformat(),
+        "cache_valid": cache_valid,
+        "config_files": [str(cfg) for cfg in configs],
+    }
+    manifest["last_updated"] = datetime.now().isoformat()
+    save_cache_manifest(manifest)
+
+
+def verify_cache_entry(name: str, tag: str, configs: list[Path], deps_root: Path) -> bool:
+    """Verify if cache entry is valid for the given tag."""
+    manifest = load_cache_manifest()
+    if "dependencies" not in manifest:
+        return False
+    
+    entry = manifest["dependencies"].get(name)
+    if not entry:
+        return False
+    
+    # Check if tag matches and cache files exist
+    if entry.get("tag") != tag:
+        return False
+    
+    if not entry.get("cache_valid", False):
+        return False
+    
+    # Verify all config files exist
+    return any_path([deps_root / cfg for cfg in configs])
+
+
+def clear_cache_manifest() -> None:
+    """Clear cache manifest (useful for clean builds)."""
+    if CACHE_MANIFEST.exists():
+        CACHE_MANIFEST.unlink()
+        info("Cache manifest cleared")
+
+
 def find_vs_dev_cmd() -> Path | None:
     vswhere = (
         Path(os.environ.get("ProgramFiles(x86)", ""))
@@ -93,11 +161,7 @@ def import_vs_env(vs_dev_cmd: Path) -> dict:
     # Use shell=True to properly handle the command with spaces
     cmd_str = f'call "{vs_dev_cmd}" -no_logo && set'
     result = subprocess.run(
-        cmd_str,
-        shell=True,
-        capture_output=True,
-        text=True,
-        timeout=60
+        cmd_str, shell=True, capture_output=True, text=True, timeout=60
     )
     if result.returncode != 0:
         error(f"Failed to import VS environment: {result.stderr}")
@@ -156,10 +220,14 @@ def cmake_configure(
     ]
     # CMAKE_BUILD_TYPE is only used for single-config generators (like Unix Makefiles, Ninja)
     # Multi-config generators (like Visual Studio, Ninja Multi-Config) use --config flag instead
-    if generator and "Multi-Config" not in generator and "Visual Studio" not in generator:
+    if (
+        generator
+        and "Multi-Config" not in generator
+        and "Visual Studio" not in generator
+    ):
         args.append("-DCMAKE_BUILD_TYPE=Release")
     # For multi-config generators, CMAKE_BUILD_TYPE is ignored and --config is used during build
-    
+
     if generator:
         args = ["cmake", "-G", generator] + args[1:]
     args.extend(extra)
@@ -216,8 +284,17 @@ def ensure_library(
     configs: list[Path],
     extra_args: list[str],
 ) -> None:
-    if any_path([deps_root / rel for rel in configs]):
+    # Check cache manifest first
+    if verify_cache_entry(name, tag, configs, deps_root):
+        info(f"{name} ({tag}) already cached and verified")
         return
+    
+    # Fallback to file-based check
+    if any_path([deps_root / rel for rel in configs]):
+        info(f"{name} found in cache, but manifest missing - updating manifest")
+        update_cache_entry(name, tag, configs, deps_root)
+        return
+    
     info(f"Building {name} from {tag}")
     src = (
         deps_root.parent / name
@@ -234,6 +311,9 @@ def ensure_library(
     cmake_configure(src, build_dir, install_dir, generator, env, extra_args)
     cmake_build(build_dir, env, use_ninja)
     cmake_install(build_dir, env)
+    
+    # Update cache manifest after successful build
+    update_cache_entry(name, tag, configs, deps_root)
 
 
 def ensure_qhotkey(repo_root: Path) -> None:
@@ -244,7 +324,16 @@ def ensure_qhotkey(repo_root: Path) -> None:
     if qhotkey_dir.exists():
         shutil.rmtree(qhotkey_dir)
     info("Cloning QHotkey dependency")
-    run_command(["git", "clone", "--depth", "1", "https://github.com/Skycoder42/QHotkey", str(qhotkey_dir)])
+    run_command(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "https://github.com/Skycoder42/QHotkey",
+            str(qhotkey_dir),
+        ]
+    )
 
 
 def protobuf_installed(deps_root: Path) -> bool:
@@ -312,19 +401,36 @@ def ensure_third_party(
 def ensure_protobuf(
     repo_root: Path, deps_root: Path, generator: str, env: dict, use_ninja: bool
 ) -> None:
-    if protobuf_installed(deps_root):
-        info("Protobuf already cached")
+    protobuf_tag = "v21.4"
+    protobuf_configs = [
+        Path("bin/protoc.exe"),
+        Path("tools/protobuf/protoc.exe"),
+        Path("lib/libprotobuf.lib"),
+        Path("lib/protobuf.lib"),
+        Path("cmake/protobuf-config.cmake"),
+    ]
+    
+    # Check cache manifest first
+    if verify_cache_entry("protobuf", protobuf_tag, protobuf_configs, deps_root):
+        info("Protobuf already cached and verified")
         return
+    
+    # Fallback to file-based check
+    if protobuf_installed(deps_root):
+        info("Protobuf found in cache, but manifest missing - updating manifest")
+        update_cache_entry("protobuf", protobuf_tag, protobuf_configs, deps_root)
+        return
+    
     ensure_library(
         repo_root,
         deps_root,
         "protobuf",
         "https://github.com/protocolbuffers/protobuf",
-        "v21.4",
+        protobuf_tag,
         generator,
         prepare_x64_env(env),
         use_ninja,
-        [],
+        protobuf_configs,
         [
             "-Dprotobuf_MSVC_STATIC_RUNTIME=OFF",
             "-Dprotobuf_BUILD_TESTS=OFF",
@@ -403,13 +509,42 @@ def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
     info("Deploying Qt runtime libraries with windeployqt")
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join([str(qt_root / "bin"), env.get("PATH", "")])
+    
+    # Try to set VCINSTALLDIR to suppress warning if Visual Studio is available
+    vs_dev_cmd = find_vs_dev_cmd()
+    if vs_dev_cmd:
+        try:
+            vs_env = import_vs_env(vs_dev_cmd)
+            if "VCINSTALLDIR" in vs_env:
+                env["VCINSTALLDIR"] = vs_env["VCINSTALLDIR"]
+        except Exception:
+            # If VS env import fails, continue without it
+            pass
+    
     cmd = [
         str(watchdog),
         "--release",
         "--no-translations",
+        "--no-compiler-runtime",
+        "--no-system-d3d-compiler",
+        "--no-opengl-sw",
+        "--no-virtualkeyboard",  # Suppress QCommandLineParser warning
         str(exe_path),
     ]
     run_command(cmd, env=env)
+
+
+def copy_openssl_libraries(qt_root: Path, target_dir: Path) -> None:
+    ssl_files = ["libcrypto-3-x64.dll", "libssl-3-x64.dll"]
+    src_dir = qt_root / "bin"
+    for name in ssl_files:
+        src = src_dir / name
+        if not src.exists():
+            info(f"{name} not found at {src}; skipping")
+            continue
+        dest = target_dir / name
+        shutil.copy2(src, dest)
+        info(f"Copied {name} to release directory")
 
 
 def main() -> None:
@@ -448,6 +583,7 @@ def main() -> None:
     download_resources(repo_root, build_dir)
     download_core(repo_root, build_dir)
     deploy_qt_runtime(qt_root, release_dir(build_dir, use_ninja))
+    copy_openssl_libraries(qt_root, release_dir(build_dir, use_ninja))
 
     info("Build completed.")
 
