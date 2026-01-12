@@ -151,10 +151,15 @@ def cmake_configure(
         str(src),
         "-B",
         str(build),
-        "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_SHARED_LIBS=OFF",
         "-DCMAKE_INSTALL_PREFIX=" + str(install),
     ]
+    # CMAKE_BUILD_TYPE is only used for single-config generators (like Unix Makefiles, Ninja)
+    # Multi-config generators (like Visual Studio, Ninja Multi-Config) use --config flag instead
+    if generator and "Multi-Config" not in generator and "Visual Studio" not in generator:
+        args.append("-DCMAKE_BUILD_TYPE=Release")
+    # For multi-config generators, CMAKE_BUILD_TYPE is ignored and --config is used during build
+    
     if generator:
         args = ["cmake", "-G", generator] + args[1:]
     args.extend(extra)
@@ -385,6 +390,28 @@ def download_core(repo_root: Path, build_dir: Path) -> None:
         info("nekobox_core download failed; continuing.")
 
 
+def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
+    watchdog = qt_root / "bin" / "windeployqt.exe"
+    if not watchdog.exists():
+        info(f"{watchdog} not found; skipping Qt deployment.")
+        return
+    exe_path = target_dir / "nekobox.exe"
+    if not exe_path.exists():
+        info(f"{exe_path} missing; skipping Qt deployment.")
+        return
+
+    info("Deploying Qt runtime libraries with windeployqt")
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join([str(qt_root / "bin"), env.get("PATH", "")])
+    cmd = [
+        str(watchdog),
+        "--release",
+        "--no-translations",
+        str(exe_path),
+    ]
+    run_command(cmd, env=env)
+
+
 def main() -> None:
     repo_root = Path(__file__).resolve().parent
     qt_root = require_path(
@@ -420,6 +447,7 @@ def main() -> None:
     copy_executable(build_dir, repo_root, use_ninja)
     download_resources(repo_root, build_dir)
     download_core(repo_root, build_dir)
+    deploy_qt_runtime(qt_root, release_dir(build_dir, use_ninja))
 
     info("Build completed.")
 
