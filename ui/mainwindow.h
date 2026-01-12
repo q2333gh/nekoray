@@ -131,6 +131,8 @@ private slots:
 
     void on_proxyListTable_itemDoubleClicked(QTableWidgetItem *item);
 
+    void on_proxyListTable_itemChanged(QTableWidgetItem *item);
+
     void on_proxyListTable_customContextMenuRequested(const QPoint &pos);
 
     void on_tabWidget_currentChanged(int index);

@@ -164,13 +164,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         group->Save();
     };
     ui->proxyListTable->refresh_data = [=](int id) { refresh_proxy_list_impl_refresh_data(id); };
+    connect(ui->proxyListTable, &QTableWidget::itemChanged, this, &MainWindow::on_proxyListTable_itemChanged);
     if (auto button = ui->proxyListTable->findChild<QAbstractButton *>(QString(), Qt::FindDirectChildrenOnly)) {
         // Corner Button
         connect(button, &QAbstractButton::clicked, this, [=] { refresh_proxy_list_impl(-1, {GroupSortMethod::ById}); });
     }
     connect(ui->proxyListTable->horizontalHeader(), &QHeaderView::sectionClicked, this, [=](int logicalIndex) {
+        if (logicalIndex < 1 || logicalIndex > 4) return;
         GroupSortAction action;
-        // 涓嶆纭殑descending瀹炵幇
+        // ????descending??
         if (proxy_last_order == logicalIndex) {
             action.descending = true;
             proxy_last_order = -1;
@@ -178,17 +180,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             proxy_last_order = logicalIndex;
         }
         action.save_sort = true;
-        // 琛ㄥご
-        if (logicalIndex == 0) {
+        // ??
+        if (logicalIndex == 1) {
             action.method = GroupSortMethod::ByType;
-        } else if (logicalIndex == 1) {
-            action.method = GroupSortMethod::ByAddress;
         } else if (logicalIndex == 2) {
-            action.method = GroupSortMethod::ByName;
+            action.method = GroupSortMethod::ByAddress;
         } else if (logicalIndex == 3) {
+            action.method = GroupSortMethod::ByName;
+        } else if (logicalIndex == 4) {
             action.method = GroupSortMethod::ByLatency;
-        } else {
-            return;
         }
         refresh_proxy_list_impl(-1, action);
     });

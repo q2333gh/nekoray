@@ -11,6 +11,7 @@
 #include <QTextStream>
 #include <QDateTime>
 #include <QDir>
+#include <QSignalBlocker>
 
 // Group tab manage
 
@@ -51,7 +52,7 @@ void MainWindow::show_group(int gid) {
 
     // 列宽是否可调
     if (group->manually_column_width) {
-        for (int i = 0; i <= 4; i++) {
+        for (int i = 0; i <= 5; i++) {
             ui->proxyListTable->horizontalHeader()->setSectionResizeMode(i, QHeaderView::Interactive);
             auto size = group->column_width.value(i);
             if (size <= 0) size = ui->proxyListTable->horizontalHeader()->defaultSectionSize();
@@ -59,10 +60,11 @@ void MainWindow::show_group(int gid) {
         }
     } else {
         ui->proxyListTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
         ui->proxyListTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
         ui->proxyListTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+        ui->proxyListTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     }
 
     // show proxies
@@ -202,6 +204,7 @@ void MainWindow::refresh_proxy_list_impl(const int &id, GroupSortAction groupSor
 }
 
 void MainWindow::refresh_proxy_list_impl_refresh_data(const int &id) {
+    QSignalBlocker blocker(ui->proxyListTable);
     // 绘制或更新item(s)
     for (int row = 0; row < ui->proxyListTable->rowCount(); row++) {
         auto profileId = ui->proxyListTable->row2Id[row];
@@ -218,25 +221,33 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const int &id) {
         check->setText(isRunning ? "✓" : Int2String(row + 1));
         ui->proxyListTable->setVerticalHeaderItem(row, check);
 
-        // C0: Type
+        // Toggle column
+        auto toggleItem = f0->clone();
+        toggleItem->setFlags(toggleItem->flags() | Qt::ItemIsUserCheckable);
+        toggleItem->setCheckState(isRunning ? Qt::Checked : Qt::Unchecked);
+        toggleItem->setText("");
+        if (isRunning) toggleItem->setForeground(palette().link());
+        ui->proxyListTable->setItem(row, 0, toggleItem);
+
+        // C1: Type
         auto f = f0->clone();
         f->setText(profile->bean->DisplayType());
         if (isRunning) f->setForeground(palette().link());
-        ui->proxyListTable->setItem(row, 0, f);
+        ui->proxyListTable->setItem(row, 1, f);
 
-        // C1: Address+Port
+        // C2: Address+Port
         f = f0->clone();
         f->setText(profile->bean->DisplayAddress());
         if (isRunning) f->setForeground(palette().link());
-        ui->proxyListTable->setItem(row, 1, f);
+        ui->proxyListTable->setItem(row, 2, f);
 
-        // C2: Name
+        // C3: Name
         f = f0->clone();
         f->setText(profile->bean->name);
         if (isRunning) f->setForeground(palette().link());
-        ui->proxyListTable->setItem(row, 2, f);
+        ui->proxyListTable->setItem(row, 3, f);
 
-        // C3: Test Result
+        // C4: Test Result
         f = f0->clone();
         if (profile->full_test_report.isEmpty()) {
             auto color = profile->DisplayLatencyColor();
@@ -245,12 +256,12 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const int &id) {
         } else {
             f->setText(profile->full_test_report);
         }
-        ui->proxyListTable->setItem(row, 3, f);
+        ui->proxyListTable->setItem(row, 4, f);
 
-        // C4: Traffic
+        // C5: Traffic
         f = f0->clone();
         f->setText(profile->traffic_data->DisplayTraffic());
-        ui->proxyListTable->setItem(row, 4, f);
+        ui->proxyListTable->setItem(row, 5, f);
     }
 }
 
@@ -273,6 +284,19 @@ void MainWindow::on_proxyListTable_itemDoubleClicked(QTableWidgetItem *item) {
     }
     auto dialog = new DialogEditProfile("", id, this);
     connect(dialog, &QDialog::finished, dialog, &QDialog::deleteLater);
+}
+
+void MainWindow::on_proxyListTable_itemChanged(QTableWidgetItem *item) {
+    if (item == nullptr) return;
+    if (item->column() != 0) return;
+    if (select_mode) return;
+    auto id = item->data(114514).toInt();
+    if (id < 0) return;
+    if (item->checkState() == Qt::Checked) {
+        neko_start(id);
+    } else if (NekoGui::dataStore->started_id == id) {
+        neko_stop();
+    }
 }
 
 void MainWindow::on_proxyListTable_customContextMenuRequested(const QPoint &pos) {
