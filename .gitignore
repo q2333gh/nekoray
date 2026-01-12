@@ -7,6 +7,7 @@ build_ninja/
 # ----------------------------------------------------------------------------
 *.zip
 build_tidy/
+*.log
 
 *~
 *.autosave
@@ -89,6 +90,10 @@ CMakeLists.txt.user*
 /deployment
 /neko*.sh
 /qtsdk
+
+# Dependencies cache
+libs/deps/built/
+libs/deps/resources/
 
 .vs
 out

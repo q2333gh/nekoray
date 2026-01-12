@@ -16,6 +16,7 @@ CONFIG = "Release"
 QT_REL_PATH = Path("qt_lib/qt650")
 DEPS_ROOT = Path("libs/deps/built")
 DEPS_CACHE_DIR = Path("libs/deps")
+RESOURCES_CACHE_DIR = DEPS_CACHE_DIR / "resources"
 DEPS_BUILD_TIMEOUT = 900
 DOWNLOAD_TIMEOUT = 300
 CORE_URL = "https://github.com/MatsuriDayo/nekoray/releases"
@@ -455,8 +456,14 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
     if not script.exists():
         info("download_resources.ps1 missing; skipping resources")
         return
-    info("Downloading public resources")
+    
+    # Create resources cache directory
+    RESOURCES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Download to cache first, then copy to build directory
+    info("Downloading public resources (using cache)")
     try:
+        # Download to cache directory
         run_command(
             [
                 "powershell",
@@ -465,10 +472,31 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
                 "-File",
                 str(script),
                 "-DestDir",
-                str(release_dir(build_dir, False)),
+                str(RESOURCES_CACHE_DIR),
             ],
             timeout=DOWNLOAD_TIMEOUT,
         )
+        
+        # Copy cached resources to build directory
+        release_dir_path = release_dir(build_dir, False)
+        release_dir_path.mkdir(parents=True, exist_ok=True)
+        
+        resource_files = ["geoip.dat", "geosite.dat", "geoip.db", "geosite.db"]
+        for resource_file in resource_files:
+            cached_file = RESOURCES_CACHE_DIR / resource_file
+            if cached_file.exists():
+                dest_file = release_dir_path / resource_file
+                shutil.copy2(cached_file, dest_file)
+                info(f"Copied {resource_file} from cache to build directory")
+        
+        # Copy res/public files if they exist
+        public_res_dir = repo_root / "res" / "public"
+        if public_res_dir.exists():
+            for file in public_res_dir.iterdir():
+                if file.is_file():
+                    shutil.copy2(file, release_dir_path / file.name)
+                    info(f"Copied {file.name} from res/public")
+                    
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         info("Resource download failed; continuing.")
 

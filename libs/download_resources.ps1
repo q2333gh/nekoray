@@ -29,10 +29,22 @@ foreach ($file in $geodataUrls.Keys) {
     $url = $geodataUrls[$file]
     $destPath = Join-Path $DestDir $file
     
+    # Check if file already exists and has content
+    if (Test-Path $destPath) {
+        $fileInfo = Get-Item $destPath
+        if ($fileInfo.Length -gt 0) {
+            Write-Host "[INFO] $file already exists ($($fileInfo.Length) bytes), skipping download"
+            continue
+        } else {
+            Write-Host "[INFO] $file exists but is empty, re-downloading..."
+        }
+    }
+    
     Write-Host "[INFO] Downloading $file..."
     try {
         Invoke-WebRequest -Uri $url -OutFile $destPath -UseBasicParsing -ErrorAction Stop
-        Write-Host "[INFO] Successfully downloaded $file"
+        $fileInfo = Get-Item $destPath
+        Write-Host "[INFO] Successfully downloaded $file ($($fileInfo.Length) bytes)"
     } catch {
         Write-Host "[ERROR] Failed to download $file from $url" -ForegroundColor Red
         Write-Host "Error: $_" -ForegroundColor Red
