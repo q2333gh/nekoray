@@ -39,10 +39,10 @@ static bool DownloadCoreExecutable(const QString &destDir) {
     WriteCrashLog(QString("Attempting to download core executable to: %1").arg(destDir));
     
 #ifdef Q_OS_WIN
-    // Find PowerShell script
+    // Find Python script
     QString repoRoot = QDir(QApplication::applicationDirPath()).absolutePath();
-    // Try to find repo root by looking for libs/download_core.ps1
-    QString scriptPath = repoRoot + "/libs/download_core.ps1";
+    // Try to find repo root by looking for libs/download_core.py
+    QString scriptPath = repoRoot + "/libs/download_core.py";
     QFileInfo scriptInfo(scriptPath);
     
     // If not found in application dir, try going up directories
@@ -50,35 +50,56 @@ static bool DownloadCoreExecutable(const QString &destDir) {
         QDir dir(repoRoot);
         for (int i = 0; i < 5 && !scriptInfo.exists(); i++) {
             dir.cdUp();
-            scriptPath = dir.absolutePath() + "/libs/download_core.ps1";
+            scriptPath = dir.absolutePath() + "/libs/download_core.py";
             scriptInfo.setFile(scriptPath);
         }
     }
     
     if (!scriptInfo.exists()) {
-        WriteCrashLog(QString("CRITICAL: download_core.ps1 not found. Tried: %1").arg(scriptPath));
+        WriteCrashLog(QString("CRITICAL: download_core.py not found. Tried: %1").arg(scriptPath));
         return false;
     }
     
     WriteCrashLog(QString("Found download script at: %1").arg(scriptPath));
     
-    // Execute PowerShell script
+    // Try to use python from PATH, or common locations
+    QString pythonExe = "python";
+    QStringList pythonPaths = {
+        "python",
+        "python3",
+        "py",
+        QApplication::applicationDirPath() + "/python.exe",
+        "C:/Python312/python.exe",
+        "C:/Python311/python.exe",
+        "C:/Python310/python.exe"
+    };
+    
+    // Find available Python
+    for (const QString &pyPath : pythonPaths) {
+        QProcess testProcess;
+        testProcess.start(pyPath, QStringList() << "--version");
+        if (testProcess.waitForFinished(1000) && testProcess.exitCode() == 0) {
+            pythonExe = pyPath;
+            break;
+        }
+    }
+    
+    // Execute Python script
     QProcess process;
-    process.setProgram("powershell.exe");
+    process.setProgram(pythonExe);
     QStringList args;
-    args << "-ExecutionPolicy" << "Bypass";
-    args << "-File" << scriptPath;
-    args << "-DestDir" << destDir;
-    args << "-Version" << "latest";
+    args << scriptPath;
+    args << "--dest-dir" << destDir;
+    args << "--version" << "latest";
     
     process.setArguments(args);
     process.setProcessChannelMode(QProcess::MergedChannels);
     
-    WriteCrashLog("Starting PowerShell download process...");
+    WriteCrashLog(QString("Starting Python download process with: %1").arg(pythonExe));
     process.start();
     
     if (!process.waitForStarted(5000)) {
-        WriteCrashLog("CRITICAL: Failed to start PowerShell process");
+        WriteCrashLog("CRITICAL: Failed to start Python process");
         return false;
     }
     

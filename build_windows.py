@@ -82,15 +82,17 @@ def save_cache_manifest(manifest: dict) -> None:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
 
-def update_cache_entry(name: str, tag: str, configs: list[Path], deps_root: Path) -> None:
+def update_cache_entry(
+    name: str, tag: str, configs: list[Path], deps_root: Path
+) -> None:
     """Update cache manifest entry for a library."""
     manifest = load_cache_manifest()
     if "dependencies" not in manifest:
         manifest["dependencies"] = {}
-    
+
     # Verify cache is actually present
     cache_valid = any_path([deps_root / cfg for cfg in configs])
-    
+
     manifest["dependencies"][name] = {
         "tag": tag,
         "cached_at": datetime.now().isoformat(),
@@ -101,23 +103,25 @@ def update_cache_entry(name: str, tag: str, configs: list[Path], deps_root: Path
     save_cache_manifest(manifest)
 
 
-def verify_cache_entry(name: str, tag: str, configs: list[Path], deps_root: Path) -> bool:
+def verify_cache_entry(
+    name: str, tag: str, configs: list[Path], deps_root: Path
+) -> bool:
     """Verify if cache entry is valid for the given tag."""
     manifest = load_cache_manifest()
     if "dependencies" not in manifest:
         return False
-    
+
     entry = manifest["dependencies"].get(name)
     if not entry:
         return False
-    
+
     # Check if tag matches and cache files exist
     if entry.get("tag") != tag:
         return False
-    
+
     if not entry.get("cache_valid", False):
         return False
-    
+
     # Verify all config files exist
     return any_path([deps_root / cfg for cfg in configs])
 
@@ -289,13 +293,13 @@ def ensure_library(
     if verify_cache_entry(name, tag, configs, deps_root):
         info(f"{name} ({tag}) already cached and verified")
         return
-    
+
     # Fallback to file-based check
     if any_path([deps_root / rel for rel in configs]):
         info(f"{name} found in cache, but manifest missing - updating manifest")
         update_cache_entry(name, tag, configs, deps_root)
         return
-    
+
     info(f"Building {name} from {tag}")
     src = (
         deps_root.parent / name
@@ -312,7 +316,7 @@ def ensure_library(
     cmake_configure(src, build_dir, install_dir, generator, env, extra_args)
     cmake_build(build_dir, env, use_ninja)
     cmake_install(build_dir, env)
-    
+
     # Update cache manifest after successful build
     update_cache_entry(name, tag, configs, deps_root)
 
@@ -410,18 +414,18 @@ def ensure_protobuf(
         Path("lib/protobuf.lib"),
         Path("cmake/protobuf-config.cmake"),
     ]
-    
+
     # Check cache manifest first
     if verify_cache_entry("protobuf", protobuf_tag, protobuf_configs, deps_root):
         info("Protobuf already cached and verified")
         return
-    
+
     # Fallback to file-based check
     if protobuf_installed(deps_root):
         info("Protobuf found in cache, but manifest missing - updating manifest")
         update_cache_entry("protobuf", protobuf_tag, protobuf_configs, deps_root)
         return
-    
+
     ensure_library(
         repo_root,
         deps_root,
@@ -452,9 +456,9 @@ def copy_executable(build_dir: Path, repo_root: Path, use_ninja: bool) -> None:
 
 
 def download_resources(repo_root: Path, build_dir: Path) -> None:
-    script = repo_root / "libs" / "download_resources.ps1"
+    script = repo_root / "libs" / "download_resources.py"
     if not script.exists():
-        info("download_resources.ps1 missing; skipping resources")
+        info("download_resources.py missing; skipping resources")
         return
     
     # Create resources cache directory
@@ -466,12 +470,9 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
         # Download to cache directory
         run_command(
             [
-                "powershell",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
+                sys.executable,
                 str(script),
-                "-DestDir",
+                "--dest-dir",
                 str(RESOURCES_CACHE_DIR),
             ],
             timeout=DOWNLOAD_TIMEOUT,
@@ -502,20 +503,17 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
 
 
 def download_core(repo_root: Path, build_dir: Path) -> None:
-    script = repo_root / "libs" / "download_core.ps1"
+    script = repo_root / "libs" / "download_core.py"
     if not script.exists():
-        info("download_core.ps1 missing; skipping core download")
+        info("download_core.py missing; skipping core download")
         return
     info("Downloading nekobox_core")
     try:
         run_command(
             [
-                "powershell",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
+                sys.executable,
                 str(script),
-                "-DestDir",
+                "--dest-dir",
                 str(release_dir(build_dir, False)),
             ],
             timeout=DOWNLOAD_TIMEOUT,
@@ -537,7 +535,7 @@ def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
     info("Deploying Qt runtime libraries with windeployqt")
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join([str(qt_root / "bin"), env.get("PATH", "")])
-    
+
     # Try to set VCINSTALLDIR to suppress warning if Visual Studio is available
     vs_dev_cmd = find_vs_dev_cmd()
     if vs_dev_cmd:
@@ -548,7 +546,7 @@ def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
         except Exception:
             # If VS env import fails, continue without it
             pass
-    
+
     cmd = [
         str(watchdog),
         "--release",

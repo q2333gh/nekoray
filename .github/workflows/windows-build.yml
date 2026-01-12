@@ -172,7 +172,7 @@ jobs:
         shell: pwsh
         run: |
           $buildReleaseDir = "build\Release"
-          & powershell -ExecutionPolicy Bypass -File "libs\download_resources.ps1" -DestDir $buildReleaseDir
+          python libs\download_resources.py --dest-dir $buildReleaseDir
 
       - name: Download nekobox_core
         if: success()

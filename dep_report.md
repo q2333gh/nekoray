@@ -26,12 +26,12 @@
 - The Windows downloader acquires the latest:
   - `geoip.dat`, `geosite.dat`, `geoip.db`, `geosite.db`
   - All files under `res/public`
-- See `download_resources.ps1` (lines 22–47) for URLs and copy steps.
+- See `download_resources.py` for URLs and copy steps.
 
 ### Prebuilt Core Binary
 - `nekobox_core.exe` is fetched from the latest GitHub release of `MatsuriDayo/nekoray`.
 - Falls back to manual download if the API fetch fails.
-- Download/placement handled in `download_core.ps1` (lines 2–110).
+- Download/placement handled in `download_core.py`.
 
 ### Cache Expectations
 - All dependencies are cached to `libs/deps/built`.
@@ -74,12 +74,12 @@
 * **公共资源数据**
 
   * Windows 构建会下载最新的 `geoip/geosite` 数据（`.dat` 与 `.db`），放入 `res/public`。
-  * 下载逻辑在 `download_resources.ps1`（22–47 行）。
+  * 下载逻辑在 `download_resources.py`。
 
 * **预编译核心程序**
 
   * `nekobox_core.exe` 从 `MatsuriDayo/nekoray` 的 GitHub 最新 Release 获取，失败则手动下载。
-  * 由 `download_core.ps1`（2–110 行）处理。
+  * 由 `download_core.py` 处理。
 
 * **缓存机制**
 

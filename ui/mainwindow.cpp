@@ -1,4 +1,4 @@
-﻿#include "./ui_mainwindow.h"
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #include "fmt/Preset.hpp"
@@ -442,7 +442,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         // Download core (this function needs to be accessible here)
         // For now, we'll use a simple approach: call the download script
 #ifdef Q_OS_WIN
-        QString scriptPath = QDir(QApplication::applicationDirPath()).absolutePath() + "/libs/download_core.ps1";
+        QString scriptPath = QDir(QApplication::applicationDirPath()).absolutePath() + "/libs/download_core.py";
         QFileInfo scriptInfo(scriptPath);
         
         // Try to find script in repo
@@ -450,19 +450,40 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             QDir dir(QApplication::applicationDirPath());
             for (int i = 0; i < 5 && !scriptInfo.exists(); i++) {
                 dir.cdUp();
-                scriptPath = dir.absolutePath() + "/libs/download_core.ps1";
+                scriptPath = dir.absolutePath() + "/libs/download_core.py";
                 scriptInfo.setFile(scriptPath);
             }
         }
         
         if (scriptInfo.exists()) {
             QProcess downloadProcess;
-            downloadProcess.setProgram("powershell.exe");
+            // Try to use python from PATH, or common locations
+            QString pythonExe = "python";
+            QStringList pythonPaths = {
+                "python",
+                "python3",
+                "py",
+                QApplication::applicationDirPath() + "/python.exe",
+                "C:/Python312/python.exe",
+                "C:/Python311/python.exe",
+                "C:/Python310/python.exe"
+            };
+            
+            // Find available Python
+            for (const QString &pyPath : pythonPaths) {
+                QProcess testProcess;
+                testProcess.start(pyPath, QStringList() << "--version");
+                if (testProcess.waitForFinished(1000) && testProcess.exitCode() == 0) {
+                    pythonExe = pyPath;
+                    break;
+                }
+            }
+            
+            downloadProcess.setProgram(pythonExe);
             QStringList args;
-            args << "-ExecutionPolicy" << "Bypass";
-            args << "-File" << scriptPath;
-            args << "-DestDir" << QApplication::applicationDirPath();
-            args << "-Version" << "latest";
+            args << scriptPath;
+            args << "--dest-dir" << QApplication::applicationDirPath();
+            args << "--version" << "latest";
             
             downloadProcess.setArguments(args);
             downloadProcess.setProcessChannelMode(QProcess::MergedChannels);
