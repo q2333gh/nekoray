@@ -152,8 +152,9 @@ def cmake_configure(
 
 def cmake_build(build: Path, env: dict, use_ninja: bool) -> None:
     import multiprocessing
+    import math
 
-    cpu_count = multiprocessing.cpu_count()
+    cpu_count = max(1, math.floor(multiprocessing.cpu_count() * 0.7))
     args = ["cmake", "--build", str(build), "--config", "Release"]
     if use_ninja:
         args.extend(["--", "-j", str(cpu_count)])
