@@ -90,7 +90,18 @@ def find_vs_dev_cmd() -> Path | None:
 
 
 def import_vs_env(vs_dev_cmd: Path) -> dict:
-    result = run_command(["cmd", "/c", f'"{vs_dev_cmd}" -no_logo && set'], capture=True)
+    # Use shell=True to properly handle the command with spaces
+    cmd_str = f'call "{vs_dev_cmd}" -no_logo && set'
+    result = subprocess.run(
+        cmd_str,
+        shell=True,
+        capture_output=True,
+        text=True,
+        timeout=60
+    )
+    if result.returncode != 0:
+        error(f"Failed to import VS environment: {result.stderr}")
+        raise subprocess.CalledProcessError(result.returncode, cmd_str)
     env = os.environ.copy()
     for line in result.stdout.splitlines():
         if "=" in line:
@@ -218,6 +229,17 @@ def ensure_library(
     cmake_configure(src, build_dir, install_dir, generator, env, extra_args)
     cmake_build(build_dir, env, use_ninja)
     cmake_install(build_dir, env)
+
+
+def ensure_qhotkey(repo_root: Path) -> None:
+    qhotkey_dir = repo_root / "3rdparty" / "QHotkey"
+    cmake_file = qhotkey_dir / "CMakeLists.txt"
+    if cmake_file.exists():
+        return
+    if qhotkey_dir.exists():
+        shutil.rmtree(qhotkey_dir)
+    info("Cloning QHotkey dependency")
+    run_command(["git", "clone", "--depth", "1", "https://github.com/Skycoder42/QHotkey", str(qhotkey_dir)])
 
 
 def protobuf_installed(deps_root: Path) -> bool:
@@ -376,6 +398,7 @@ def main() -> None:
 
     ensure_third_party(repo_root, deps_root, generator, env, use_ninja)
     ensure_protobuf(repo_root, deps_root, generator, env, use_ninja)
+    ensure_qhotkey(repo_root)
 
     cmake_configure(
         repo_root,
@@ -388,6 +411,7 @@ def main() -> None:
             f"-DNKR_LIBS={deps_root}",
             f"-DCMAKE_PREFIX_PATH={qt_root}",
             "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false",
+            "-DQT_NO_PACKAGE_VERSION_CHECK=TRUE",
         ],
     )
     cmake_build(build_dir, env, use_ninja)
