@@ -61,11 +61,25 @@ def any_path(paths: list[Path]) -> bool:
 
 
 def find_vs_dev_cmd() -> Path | None:
-    vswhere = Path(os.environ.get("ProgramFiles(x86)", "")) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    vswhere = (
+        Path(os.environ.get("ProgramFiles(x86)", ""))
+        / "Microsoft Visual Studio"
+        / "Installer"
+        / "vswhere.exe"
+    )
     if not vswhere.exists():
         return None
     result = run_command(
-        [str(vswhere), "-latest", "-products", "*", "-requires", "Microsoft.Component.MSBuild", "-property", "installationPath"],
+        [
+            str(vswhere),
+            "-latest",
+            "-products",
+            "*",
+            "-requires",
+            "Microsoft.Component.MSBuild",
+            "-property",
+            "installationPath",
+        ],
         capture=True,
     )
     base = Path(result.stdout.strip()) if result.stdout else None
@@ -76,7 +90,7 @@ def find_vs_dev_cmd() -> Path | None:
 
 
 def import_vs_env(vs_dev_cmd: Path) -> dict:
-    result = run_command(["cmd", "/c", f"\"{vs_dev_cmd}\" -no_logo && set"], capture=True)
+    result = run_command(["cmd", "/c", f'"{vs_dev_cmd}" -no_logo && set'], capture=True)
     env = os.environ.copy()
     for line in result.stdout.splitlines():
         if "=" in line:
@@ -92,7 +106,9 @@ def detect_generator() -> tuple[bool, str, dict]:
         return False, "", env
     vs_dev_cmd = find_vs_dev_cmd()
     if not vs_dev_cmd:
-        info("Ninja detected but VS dev environment unavailable; falling back to MSVC generator.")
+        info(
+            "Ninja detected but VS dev environment unavailable; falling back to MSVC generator."
+        )
         return False, "", env
     info("Using generator: Ninja Multi-Config")
     env = import_vs_env(vs_dev_cmd)
@@ -114,9 +130,20 @@ def ensure_repo(path: Path, url: str, tag: str) -> None:
     run_command(cmd)
 
 
-def cmake_configure(src: Path, build: Path, install: Path, generator: str, env: dict, extra: list[str]) -> None:
+def cmake_configure(
+    src: Path, build: Path, install: Path, generator: str, env: dict, extra: list[str]
+) -> None:
     build.mkdir(parents=True, exist_ok=True)
-    args = ["cmake", "-S", str(src), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF", "-DCMAKE_INSTALL_PREFIX=" + str(install)]
+    args = [
+        "cmake",
+        "-S",
+        str(src),
+        "-B",
+        str(build),
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DCMAKE_INSTALL_PREFIX=" + str(install),
+    ]
     if generator:
         args = ["cmake", "-G", generator] + args[1:]
     args.extend(extra)
@@ -124,9 +151,20 @@ def cmake_configure(src: Path, build: Path, install: Path, generator: str, env: 
 
 
 def cmake_build(build: Path, env: dict, use_ninja: bool) -> None:
+    import multiprocessing
+    cpu_count = multiprocessing.cpu_count()
     args = ["cmake", "--build", str(build), "--config", "Release"]
-    if not use_ninja:
-        args.extend(["--", "/m:1", "/p:TrackFileAccess=false", "/p:EnableMinimalRebuild=false"])
+    if use_ninja:
+        args.extend(["--", "-j", str(cpu_count)])
+    else:
+        args.extend(
+            [
+                "--",
+                f"/m:{cpu_count}",
+                "/p:TrackFileAccess=false",
+                "/p:EnableMinimalRebuild=false",
+            ]
+        )
     run_command(args, env=env)
 
 
@@ -139,22 +177,41 @@ def patch_yaml_cmake(src: Path) -> None:
     if not cmake_file.exists():
         return
     content = cmake_file.read_text()
-    pattern = re.compile(r"cmake_minimum_required\s*\(VERSION\s+[<]?\s*3\.[0-4][^)]+\)", re.IGNORECASE)
+    pattern = re.compile(
+        r"cmake_minimum_required\s*\(VERSION\s+[<]?\s*3\.[0-4][^)]+\)", re.IGNORECASE
+    )
     if pattern.search(content):
         info("Updating yaml-cpp CMakeLists.txt minimum version to 3.5")
         content = pattern.sub("cmake_minimum_required(VERSION 3.5)", content)
         cmake_file.write_text(content)
 
 
-def ensure_library(repo_root: Path, deps_root: Path, name: str, url: str, tag: str, generator: str, env: dict, use_ninja: bool, configs: list[Path], extra_args: list[str]) -> None:
+def ensure_library(
+    repo_root: Path,
+    deps_root: Path,
+    name: str,
+    url: str,
+    tag: str,
+    generator: str,
+    env: dict,
+    use_ninja: bool,
+    configs: list[Path],
+    extra_args: list[str],
+) -> None:
     if any_path([deps_root / rel for rel in configs]):
         return
     info(f"Building {name} from {tag}")
-    src = deps_root.parent / name if name != "protobuf" else repo_root / "libs" / "deps" / name
+    src = (
+        deps_root.parent / name
+        if name != "protobuf"
+        else repo_root / "libs" / "deps" / name
+    )
     ensure_repo(src, url, tag)
     if name == "yaml-cpp":
         patch_yaml_cmake(src)
-    build_dir = src / ("build" if name != "protobuf" else ("build-ninja" if use_ninja else "build"))
+    build_dir = src / (
+        "build" if name != "protobuf" else ("build-ninja" if use_ninja else "build")
+    )
     install_dir = deps_root
     cmake_configure(src, build_dir, install_dir, generator, env, extra_args)
     cmake_build(build_dir, env, use_ninja)
@@ -162,7 +219,9 @@ def ensure_library(repo_root: Path, deps_root: Path, name: str, url: str, tag: s
 
 
 def protobuf_installed(deps_root: Path) -> bool:
-    return any_path([deps_root / "bin/protoc.exe", deps_root / "tools/protobuf/protoc.exe"]) and any_path(
+    return any_path(
+        [deps_root / "bin/protoc.exe", deps_root / "tools/protobuf/protoc.exe"]
+    ) and any_path(
         [
             deps_root / "lib/libprotobuf.lib",
             deps_root / "lib/protobuf.lib",
@@ -173,7 +232,9 @@ def protobuf_installed(deps_root: Path) -> bool:
     )
 
 
-def ensure_third_party(repo_root: Path, deps_root: Path, generator: str, env: dict, use_ninja: bool) -> None:
+def ensure_third_party(
+    repo_root: Path, deps_root: Path, generator: str, env: dict, use_ninja: bool
+) -> None:
     scan = lambda rel: Path(rel)
     zxing_configs = [
         scan("lib/cmake/ZXing/ZXingConfig.cmake"),
@@ -205,10 +266,23 @@ def ensure_third_party(repo_root: Path, deps_root: Path, generator: str, env: di
         cfg_paths = [deps_root / cfg for cfg in configs]
         if any_path(cfg_paths):
             continue
-        ensure_library(repo_root, deps_root, name, url, tag, generator, env, use_ninja, configs, ["-DBUILD_TESTING=OFF", "-DCMAKE_BUILD_TYPE=Release"])
+        ensure_library(
+            repo_root,
+            deps_root,
+            name,
+            url,
+            tag,
+            generator,
+            env,
+            use_ninja,
+            configs,
+            ["-DBUILD_TESTING=OFF", "-DCMAKE_BUILD_TYPE=Release"],
+        )
 
 
-def ensure_protobuf(repo_root: Path, deps_root: Path, generator: str, env: dict, use_ninja: bool) -> None:
+def ensure_protobuf(
+    repo_root: Path, deps_root: Path, generator: str, env: dict, use_ninja: bool
+) -> None:
     if protobuf_installed(deps_root):
         info("Protobuf already cached")
         return
@@ -249,7 +323,15 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
     info("Downloading public resources")
     try:
         run_command(
-            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir(build_dir, False))],
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(script),
+                "-DestDir",
+                str(release_dir(build_dir, False)),
+            ],
             timeout=DOWNLOAD_TIMEOUT,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -264,7 +346,15 @@ def download_core(repo_root: Path, build_dir: Path) -> None:
     info("Downloading nekobox_core")
     try:
         run_command(
-            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir(build_dir, False))],
+            [
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(script),
+                "-DestDir",
+                str(release_dir(build_dir, False)),
+            ],
             timeout=DOWNLOAD_TIMEOUT,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -273,7 +363,9 @@ def download_core(repo_root: Path, build_dir: Path) -> None:
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parent
-    qt_root = require_path(repo_root / QT_REL_PATH, f"Qt directory missing at {QT_REL_PATH}")
+    qt_root = require_path(
+        repo_root / QT_REL_PATH, f"Qt directory missing at {QT_REL_PATH}"
+    )
 
     use_ninja, generator, env = detect_generator()
     build_dir = repo_root / ("build_ninja" if use_ninja else "build")
@@ -286,11 +378,15 @@ def main() -> None:
     cmake_configure(
         repo_root,
         build_dir,
-        qt_root,
-        deps_root,
+        build_dir,  # install prefix (not used for main project, but required by function signature)
         generator,
         env,
-        ["-DQT_VERSION_MAJOR=6", f"-DNKR_LIBS={deps_root}", "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false"],
+        [
+            "-DQT_VERSION_MAJOR=6",
+            f"-DNKR_LIBS={deps_root}",
+            f"-DCMAKE_PREFIX_PATH={qt_root}",
+            "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false",
+        ],
     )
     cmake_build(build_dir, env, use_ninja)
     cmake_install(build_dir, env)
