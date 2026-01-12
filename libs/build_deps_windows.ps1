@@ -37,7 +37,11 @@ function Ensure-VsDevCmd {
 function Ensure-Repo {
     param([string]$Path, [string]$Url, [string]$Tag)
     if (-not (Test-Path -LiteralPath $Path)) {
-        git clone -b $Tag --depth 1 $Url $Path
+        if ($Tag -eq "master" -or $Tag -eq "main") {
+            git clone --depth 1 $Url $Path
+        } else {
+            git clone -b $Tag --depth 1 $Url $Path
+        }
     }
 }
 
@@ -83,7 +87,7 @@ if (-not (Test-CmakeConfig -InstallDir $InstallDir -Candidates $ZxingConfigs)) {
     Ensure-Repo -Path (Join-Path $DepsDir "zxing-cpp") -Url "https://github.com/nu-book/zxing-cpp" -Tag "v2.0.0"
 }
 if (-not (Test-CmakeConfig -InstallDir $InstallDir -Candidates $YamlConfigs)) {
-    Ensure-Repo -Path (Join-Path $DepsDir "yaml-cpp") -Url "https://github.com/jbeder/yaml-cpp" -Tag "yaml-cpp-0.7.0"
+    Ensure-Repo -Path (Join-Path $DepsDir "yaml-cpp") -Url "https://github.com/jbeder/yaml-cpp" -Tag "master"
 }
 
 if (-not (Test-CmakeConfig -InstallDir $InstallDir -Candidates $ZxingConfigs)) {
@@ -111,6 +115,18 @@ if (-not (Test-CmakeConfig -InstallDir $InstallDir -Candidates $YamlConfigs)) {
     $YamlSrc = Join-Path $DepsDir "yaml-cpp"
     $YamlBuild = Join-Path $YamlSrc "build"
     New-Item -ItemType Directory -Force -Path $YamlBuild | Out-Null
+    
+    # Fix CMakeLists.txt if it has old cmake_minimum_required
+    $YamlCmakeLists = Join-Path $YamlSrc "CMakeLists.txt"
+    if (Test-Path $YamlCmakeLists) {
+        $content = Get-Content $YamlCmakeLists -Raw
+        if ($content -match 'cmake_minimum_required\s*\(VERSION\s+[<]?\s*3\.[0-4]') {
+            Write-Host "Updating yaml-cpp CMakeLists.txt to require CMake 3.5+"
+            $content = $content -replace 'cmake_minimum_required\s*\(VERSION\s+[<]?\s*3\.[0-4][^)]*\)', 'cmake_minimum_required(VERSION 3.5)'
+            Set-Content $YamlCmakeLists -Value $content -NoNewline
+        }
+    }
+    
     Push-Location $YamlBuild
     try {
         & cmake -G Ninja -S $YamlSrc -B $YamlBuild `
