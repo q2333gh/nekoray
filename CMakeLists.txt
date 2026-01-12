@@ -107,7 +107,7 @@ if (NKR_NO_YAML)
     nkr_add_compile_definitions(NKR_NO_YAML)
 else ()
     find_package(yaml-cpp CONFIG REQUIRED) # only Release is built
-    list(APPEND NKR_EXTERNAL_TARGETS yaml-cpp)
+    list(APPEND NKR_EXTERNAL_TARGETS yaml-cpp::yaml-cpp)
 endif ()
 
 # zxing-cpp
@@ -133,7 +133,7 @@ endif ()
 if (DBG_CMAKE)
     print_all_variables()
     print_target_properties(myproto)
-    print_target_properties(yaml-cpp)
+    print_target_properties(yaml-cpp::yaml-cpp)
     print_target_properties(ZXing::ZXing)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")

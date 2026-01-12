@@ -9,6 +9,13 @@ on:
     branches:
       - main
       - master
+  workflow_dispatch:
+    inputs:
+      clean_deps:
+        description: 'Clean dependencies cache'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-windows:
@@ -297,3 +304,96 @@ jobs:
             Write-Host "Error: Failed to create release" -ForegroundColor Red
             exit $LASTEXITCODE
           }
+
+  clean-build:
+    runs-on: windows-latest
+
+    env:
+      QT_VERSION_MAJOR: "6"
+      QT_VERSION: "6.5.3"
+      QT_HOST: "windows"
+      QT_TARGET: "desktop"
+      QT_ARCH: "win64_msvc2019_64"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install aqtinstall
+        run: |
+          pip install aqtinstall
+
+      - name: Install Qt
+        run: |
+          python -m aqt install-qt ^
+            %QT_HOST% %QT_TARGET% %QT_VERSION% %QT_ARCH% ^
+            --outputdir C:\Qt
+        shell: cmd
+
+      - name: Install MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: 14.2
+          arch: x64
+
+      - name: Setup Qt path for build_windows.py
+        shell: pwsh
+        run: |
+          $qtSource = "C:\Qt\$env:QT_VERSION\msvc2019_64"
+          $qtDest = "qt_lib\qt650"
+          
+          # Create directory structure
+          New-Item -ItemType Directory -Path "qt_lib" -Force | Out-Null
+          
+          # Create junction/symlink or copy Qt if needed
+          if (-not (Test-Path $qtDest)) {
+            Write-Host "Creating Qt symlink from $qtSource to $qtDest"
+            # Use mklink to create a directory junction (works without admin on Windows)
+            cmd /c mklink /J $qtDest $qtSource
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Symlink failed, copying Qt directory instead..."
+              robocopy $qtSource $qtDest /E /NFL /NDL /NJH /NJS
+            }
+          } else {
+            Write-Host "Qt path already exists at $qtDest"
+          }
+
+      - name: Run clean build script
+        shell: pwsh
+        run: |
+          $cleanDepsFlag = ""
+          if ("${{ github.event.inputs.clean_deps }}" -eq "true") {
+            $cleanDepsFlag = "--clean-deps"
+            Write-Host "Cleaning dependencies cache before build"
+          }
+          Write-Host "Running clean_build.py with flags: $cleanDepsFlag"
+          python clean_build.py $cleanDepsFlag *> clean_build.log 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Build failed. Showing last 50 lines of log:"
+            Get-Content clean_build.log -Tail 50
+            exit $LASTEXITCODE
+          }
+        continue-on-error: false
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-build-log
+          path: clean_build.log
+          retention-days: 7
+
+      - name: Upload nekobox artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nekobox-clean-build
+          path: |
+            build/Release/nekobox.exe
