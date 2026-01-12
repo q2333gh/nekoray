@@ -300,7 +300,7 @@ void MainWindow::on_proxyListTable_itemChanged(QTableWidgetItem *item) {
 }
 
 void MainWindow::on_proxyListTable_customContextMenuRequested(const QPoint &pos) {
-    ui->menu_server->popup(ui->proxyListTable->viewport()->mapToGlobal(pos));
+    menuBuilder()->menuServer()->popup(ui->proxyListTable->viewport()->mapToGlobal(pos));
 }
 
 QList<std::shared_ptr<NekoGui::ProxyEntity>> MainWindow::get_now_selected_list() {
@@ -315,7 +315,7 @@ QList<std::shared_ptr<NekoGui::ProxyEntity>> MainWindow::get_now_selected_list()
 }
 
 QList<std::shared_ptr<NekoGui::ProxyEntity>> MainWindow::get_selected_or_group() {
-    auto selected_or_group = ui->menu_server->property("selected_or_group").toInt();
+    auto selected_or_group = menuBuilder()->menuServer()->property("selected_or_group").toInt();
     QList<std::shared_ptr<NekoGui::ProxyEntity>> profiles;
     if (selected_or_group > 0) {
         profiles = get_now_selected_list();

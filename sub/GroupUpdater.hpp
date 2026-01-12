@@ -1,6 +1,11 @@
 #pragma once
 
 #include "db/Database.hpp"
+#include "fmt/V2RayStreamSettings.hpp"
+
+#ifndef NKR_NO_YAML
+#include <yaml-cpp/yaml.h>
+#endif
 
 namespace NekoGui_sub {
     class RawUpdater {
@@ -35,7 +40,7 @@ namespace NekoGui_sub {
         void processClashVMess(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent, bool &needFix);
         void processClashHysteria2(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent);
         void processClashTUIC(const YAML::Node &proxy, std::shared_ptr<NekoGui::ProxyEntity> &ent);
-        void processClashStreamOpts(const YAML::Node &proxy, NekoGui_fmt::V2RayStreamSettings *stream);
+        void processClashStreamOpts(const YAML::Node &proxy, NekoGui_fmt::V2rayStreamSettings *stream);
 #endif
     };
 

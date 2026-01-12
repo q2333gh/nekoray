@@ -1,5 +1,6 @@
 #include "./ui_mainwindow.h"
 #include "mainwindow.h"
+#include "mainwindow_menubuilder.h"
 
 #include "fmt/Preset.hpp"
 #include "db/ProfileFilter.hpp"
@@ -67,8 +68,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Setup misc UI
     themeManager->ApplyTheme(NekoGui::dataStore->theme);
     ui->setupUi(this);
+    
+    // Build menus dynamically
+    m_menuBuilder = new MenuBuilder(this);
+    m_menuBuilder->buildMenus(ui->menubar);
+    
     //
-    connect(ui->menu_start, &QAction::triggered, this, [=]() {
+    connect(m_menuBuilder->actionStart(), &QAction::triggered, this, [=]() {
         // Log before starting
         QString logPath = QDir::currentPath() + "/crash_log.txt";
         QFile logFile(logPath);
@@ -79,7 +85,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         }
         neko_start();
     });
-    connect(ui->menu_stop, &QAction::triggered, this, [=]() { neko_stop(); });
+    connect(m_menuBuilder->actionStop(), &QAction::triggered, this, [=]() { neko_stop(); });
     connect(ui->tabWidget->tabBar(), &QTabBar::tabMoved, this, [=](int from, int to) {
         // use tabData to track tab & gid
         NekoGui::profileManager->groupsTabOrder.clear();
@@ -109,9 +115,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     }
 
     // top bar
-    ui->toolButton_program->setMenu(ui->menu_program);
-    ui->toolButton_preferences->setMenu(ui->menu_preferences);
-    ui->toolButton_server->setMenu(ui->menu_server);
+    ui->toolButton_program->setMenu(m_menuBuilder->menuProgram());
+    ui->toolButton_preferences->setMenu(m_menuBuilder->menuPreferences());
+    ui->toolButton_server->setMenu(m_menuBuilder->menuServer());
     ui->menubar->setVisible(false);
     connect(ui->toolButton_document, &QToolButton::clicked, this, [=] { QDesktopServices::openUrl(QUrl("https://matsuridayo.github.io/")); });
 
@@ -248,7 +254,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Setup Tray
     tray = new QSystemTrayIcon(this); // 鍒濆鍖栨墭鐩樺璞ray
     tray->setIcon(Icon::GetTrayIcon(Icon::NONE));
-    tray->setContextMenu(ui->menu_program); // 鍒涘缓鎵樼洏鑿滃崟
+    tray->setContextMenu(m_menuBuilder->menuProgram()); // 鍒涘缓鎵樼洏鑿滃崟
     tray->show();                           // 璁╂墭鐩樺浘鏍囨樉绀哄湪绯荤粺鎵樼洏涓?
     connect(tray, &QSystemTrayIcon::activated, this, [=](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger) {
@@ -261,20 +267,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     });
 
     // Misc menu
-    connect(ui->menu_open_config_folder, &QAction::triggered, this, [=] { QDesktopServices::openUrl(QUrl::fromLocalFile(QDir::currentPath())); });
-    ui->menu_program_preference->addActions(ui->menu_preferences->actions());
-    connect(ui->menu_add_from_clipboard2, &QAction::triggered, ui->menu_add_from_clipboard, &QAction::trigger);
-    connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=] { if (NekoGui::dataStore->started_id>=0) neko_start(NekoGui::dataStore->started_id); });
-    connect(ui->actionRestart_Program, &QAction::triggered, this, [=] { MW_dialog_message("", "RestartProgram"); });
-    connect(ui->actionShow_window, &QAction::triggered, this, [=] { tray->activated(QSystemTrayIcon::ActivationReason::Trigger); });
+    connect(m_menuBuilder->actionOpenConfigFolder(), &QAction::triggered, this, [=] { QDesktopServices::openUrl(QUrl::fromLocalFile(QDir::currentPath())); });
+    connect(m_menuBuilder->actionAddFromClipboard2(), &QAction::triggered, m_menuBuilder->actionAddFromClipboard(), &QAction::trigger);
+    connect(m_menuBuilder->actionRestartProxy(), &QAction::triggered, this, [=] { if (NekoGui::dataStore->started_id>=0) neko_start(NekoGui::dataStore->started_id); });
+    connect(m_menuBuilder->actionRestartProgram(), &QAction::triggered, this, [=] { MW_dialog_message("", "RestartProgram"); });
+    connect(m_menuBuilder->actionShowWindow(), &QAction::triggered, this, [=] { tray->activated(QSystemTrayIcon::ActivationReason::Trigger); });
     //
-    connect(ui->menu_program, &QMenu::aboutToShow, this, [=]() {
-        ui->actionRemember_last_proxy->setChecked(NekoGui::dataStore->remember_enable);
-        ui->actionStart_with_system->setChecked(AutoRun_IsEnabled());
-        ui->actionAllow_LAN->setChecked(QStringList{"::", "0.0.0.0"}.contains(NekoGui::dataStore->inbound_address));
+    connect(m_menuBuilder->menuProgram(), &QMenu::aboutToShow, this, [=]() {
+        m_menuBuilder->actionRememberLastProxy()->setChecked(NekoGui::dataStore->remember_enable);
+        m_menuBuilder->actionStartWithSystem()->setChecked(AutoRun_IsEnabled());
+        m_menuBuilder->actionAllowLAN()->setChecked(QStringList{"::", "0.0.0.0"}.contains(NekoGui::dataStore->inbound_address));
         // active server
-        for (const auto &old: ui->menuActive_Server->actions()) {
-            ui->menuActive_Server->removeAction(old);
+        for (const auto &old: m_menuBuilder->menuActiveServer()->actions()) {
+            m_menuBuilder->menuActiveServer()->removeAction(old);
             old->deleteLater();
         }
         int active_server_item_count = 0;
@@ -283,22 +288,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             a->setProperty("id", pf->id);
             a->setCheckable(true);
             if (NekoGui::dataStore->started_id == pf->id) a->setChecked(true);
-            ui->menuActive_Server->addAction(a);
+            m_menuBuilder->menuActiveServer()->addAction(a);
             if (++active_server_item_count == 100) break;
         }
         // active routing
-        for (const auto &old: ui->menuActive_Routing->actions()) {
-            ui->menuActive_Routing->removeAction(old);
+        for (const auto &old: m_menuBuilder->menuActiveRouting()->actions()) {
+            m_menuBuilder->menuActiveRouting()->removeAction(old);
             old->deleteLater();
         }
         for (const auto &name: NekoGui::Routing::List()) {
             auto a = new QAction(name, this);
             a->setCheckable(true);
             a->setChecked(name == NekoGui::dataStore->active_routing);
-            ui->menuActive_Routing->addAction(a);
+            m_menuBuilder->menuActiveRouting()->addAction(a);
         }
     });
-    connect(ui->menuActive_Server, &QMenu::triggered, this, [=](QAction *a) {
+    connect(m_menuBuilder->menuActiveServer(), &QMenu::triggered, this, [=](QAction *a) {
         bool ok;
         auto id = a->property("id").toInt(&ok);
         if (!ok) return;
@@ -308,7 +313,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             neko_start(id);
         }
     });
-    connect(ui->menuActive_Routing, &QMenu::triggered, this, [=](QAction *a) {
+    connect(m_menuBuilder->menuActiveRouting(), &QMenu::triggered, this, [=](QAction *a) {
         auto fn = a->text();
         if (!fn.isEmpty()) {
             NekoGui::Routing r;
@@ -326,77 +331,85 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             }
         }
     });
-    connect(ui->actionRemember_last_proxy, &QAction::triggered, this, [=](bool checked) {
+    connect(m_menuBuilder->actionRememberLastProxy(), &QAction::triggered, this, [=](bool checked) {
         NekoGui::dataStore->remember_enable = checked;
         NekoGui::dataStore->Save();
     });
-    connect(ui->actionStart_with_system, &QAction::triggered, this, [=](bool checked) {
+    connect(m_menuBuilder->actionStartWithSystem(), &QAction::triggered, this, [=](bool checked) {
         AutoRun_SetEnabled(checked);
     });
-    connect(ui->actionAllow_LAN, &QAction::triggered, this, [=](bool checked) {
+    connect(m_menuBuilder->actionAllowLAN(), &QAction::triggered, this, [=](bool checked) {
         NekoGui::dataStore->inbound_address = checked ? "::" : "127.0.0.1";
         MW_dialog_message("", "UpdateDataStore");
     });
     //
     connect(ui->checkBox_VPN, &QCheckBox::clicked, this, [=](bool checked) { neko_set_spmode_vpn(checked); });
     connect(ui->checkBox_SystemProxy, &QCheckBox::clicked, this, [=](bool checked) { neko_set_spmode_system_proxy(checked); });
-    connect(ui->menu_spmode, &QMenu::aboutToShow, this, [=]() {
-        ui->menu_spmode_disabled->setChecked(!(NekoGui::dataStore->spmode_system_proxy || NekoGui::dataStore->spmode_vpn));
-        ui->menu_spmode_system_proxy->setChecked(NekoGui::dataStore->spmode_system_proxy);
-        ui->menu_spmode_vpn->setChecked(NekoGui::dataStore->spmode_vpn);
+    connect(m_menuBuilder->menuSpmode(), &QMenu::aboutToShow, this, [=]() {
+        m_menuBuilder->actionSpmodeDisabled()->setChecked(!(NekoGui::dataStore->spmode_system_proxy || NekoGui::dataStore->spmode_vpn));
+        m_menuBuilder->actionSpmodeSystemProxy()->setChecked(NekoGui::dataStore->spmode_system_proxy);
+        m_menuBuilder->actionSpmodeVPN()->setChecked(NekoGui::dataStore->spmode_vpn);
     });
-    connect(ui->menu_spmode_system_proxy, &QAction::triggered, this, [=](bool checked) { neko_set_spmode_system_proxy(checked); });
-    connect(ui->menu_spmode_vpn, &QAction::triggered, this, [=](bool checked) { neko_set_spmode_vpn(checked); });
-    connect(ui->menu_spmode_disabled, &QAction::triggered, this, [=]() {
+    connect(m_menuBuilder->actionSpmodeSystemProxy(), &QAction::triggered, this, [=](bool checked) { neko_set_spmode_system_proxy(checked); });
+    connect(m_menuBuilder->actionSpmodeVPN(), &QAction::triggered, this, [=](bool checked) { neko_set_spmode_vpn(checked); });
+    connect(m_menuBuilder->actionSpmodeDisabled(), &QAction::triggered, this, [=]() {
         neko_set_spmode_system_proxy(false);
         neko_set_spmode_vpn(false);
     });
-    connect(ui->menu_qr, &QAction::triggered, this, [=]() { display_qr_link(false); });
-    connect(ui->menu_tcp_ping, &QAction::triggered, this, [=]() { speedtest_current_group(0, false); });
-    connect(ui->menu_url_test, &QAction::triggered, this, [=]() { speedtest_current_group(1, false); });
-    connect(ui->menu_full_test, &QAction::triggered, this, [=]() { speedtest_current_group(2, false); });
-    connect(ui->menu_stop_testing, &QAction::triggered, this, [=]() { speedtest_current_group(114514, false); });
+    connect(m_menuBuilder->actionQR(), &QAction::triggered, this, [=]() { display_qr_link(false); });
+    connect(m_menuBuilder->actionTCPPing(), &QAction::triggered, this, [=]() { speedtest_current_group(0, false); });
+    connect(m_menuBuilder->actionURLTest(), &QAction::triggered, this, [=]() { speedtest_current_group(1, false); });
+    connect(m_menuBuilder->actionFullTest(), &QAction::triggered, this, [=]() { speedtest_current_group(2, false); });
+    connect(m_menuBuilder->actionStopTesting(), &QAction::triggered, this, [=]() { speedtest_current_group(114514, false); });
     //
     auto set_selected_or_group = [=](int mode) {
         // 0=group 1=select 2=unknown(menu is hide)
-        ui->menu_server->setProperty("selected_or_group", mode);
+        m_menuBuilder->menuServer()->setProperty("selected_or_group", mode);
     };
+    // Create fake actions for dynamic menu insertion
+    auto fakeAction4 = new QAction("fake", this);
+    fakeAction4->setVisible(false);
+    auto fakeAction5 = new QAction("fake", this);
+    fakeAction5->setVisible(false);
+    m_menuBuilder->menuCurrentSelect()->addAction(fakeAction4);
+    m_menuBuilder->menuCurrentGroup()->addAction(fakeAction5);
+    
     auto move_tests_to_menu = [=](bool menuCurrent_Select) {
         return [=] {
             if (menuCurrent_Select) {
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_tcp_ping);
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_url_test);
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_full_test);
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_stop_testing);
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_clear_test_result);
-                ui->menuCurrent_Select->insertAction(ui->actionfake_4, ui->menu_resolve_domain);
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionTCPPing());
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionURLTest());
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionFullTest());
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionStopTesting());
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionClearTestResult());
+                m_menuBuilder->menuCurrentSelect()->insertAction(fakeAction4, m_menuBuilder->actionResolveDomain());
             } else {
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_tcp_ping);
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_url_test);
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_full_test);
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_stop_testing);
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_clear_test_result);
-                ui->menuCurrent_Group->insertAction(ui->actionfake_5, ui->menu_resolve_domain);
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionTCPPing());
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionURLTest());
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionFullTest());
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionStopTesting());
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionClearTestResult());
+                m_menuBuilder->menuCurrentGroup()->insertAction(fakeAction5, m_menuBuilder->actionResolveDomain());
             }
             set_selected_or_group(menuCurrent_Select ? 1 : 0);
         };
     };
-    connect(ui->menuCurrent_Select, &QMenu::aboutToShow, this, move_tests_to_menu(true));
-    connect(ui->menuCurrent_Group, &QMenu::aboutToShow, this, move_tests_to_menu(false));
-    connect(ui->menu_server, &QMenu::aboutToHide, this, [=] {
+    connect(m_menuBuilder->menuCurrentSelect(), &QMenu::aboutToShow, this, move_tests_to_menu(true));
+    connect(m_menuBuilder->menuCurrentGroup(), &QMenu::aboutToShow, this, move_tests_to_menu(false));
+    connect(m_menuBuilder->menuServer(), &QMenu::aboutToHide, this, [=] {
         setTimeout([=] { set_selected_or_group(2); }, this, 200);
     });
     set_selected_or_group(2);
     //
-    connect(ui->menu_share_item, &QMenu::aboutToShow, this, [=] {
+    connect(m_menuBuilder->menuShareItem(), &QMenu::aboutToShow, this, [=] {
         QString name;
         auto selected = get_now_selected_list();
         if (!selected.isEmpty()) {
             auto ent = selected.first();
             name = ent->bean->DisplayCoreType();
         }
-        ui->menu_export_config->setVisible(name == software_core_name);
-        ui->menu_export_config->setText(tr("Export %1 config").arg(name));
+        m_menuBuilder->actionExportConfig()->setVisible(name == software_core_name);
+        m_menuBuilder->actionExportConfig()->setText(tr("Export %1 config").arg(name));
     });
     refresh_status();
 

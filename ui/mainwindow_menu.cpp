@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QThread>
 
 #ifndef NKR_NO_ZXING
 #include "3rdparty/ZxingQtReader.hpp"

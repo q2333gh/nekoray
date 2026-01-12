@@ -96,6 +96,7 @@ namespace NekoGui_sys {
         
         connect(this, &QProcess::readyReadStandardOutput, this, [&]() {
             auto log = readAllStandardOutput();
+            QString logText = QString::fromUtf8(log);
             
             // Debug: Always log to core_output.log for troubleshooting
             static QFile *debugLogFile = nullptr;
@@ -123,7 +124,7 @@ namespace NekoGui_sys {
             }
             
             if (!NekoGui::dataStore->core_running) {
-                if (log.contains("grpc server listening")) {
+                if (logText.contains("grpc server listening", Qt::CaseInsensitive)) {
                     // The core really started
                     NekoGui::dataStore->core_running = true;
                     MW_show_log("[Core] gRPC server is listening");
@@ -131,7 +132,7 @@ namespace NekoGui_sys {
                         MW_dialog_message("ExternalProcess", "CoreStarted," + Int2String(start_profile_when_core_is_up));
                         start_profile_when_core_is_up = -1;
                     }
-                } else if (log.contains("failed to serve")) {
+                } else if (logText.contains("failed to serve", Qt::CaseInsensitive)) {
                     // The core failed to start
                     MW_show_log("[Core] Failed to serve gRPC");
                     QProcess::kill();

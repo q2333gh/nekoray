@@ -1,3 +1,4 @@
+#include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
 #ifndef NKR_NO_QHOTKEY
@@ -47,7 +48,7 @@ void MainWindow::HotkeyEvent(const QString &key) {
         } else if (key == NekoGui::dataStore->hotkey_route) {
             on_menu_routing_settings_triggered();
         } else if (key == NekoGui::dataStore->hotkey_system_proxy_menu) {
-            ui->menu_spmode->popup(QCursor::pos());
+            menuBuilder()->menuSpmode()->popup(QCursor::pos());
         }
     });
 }

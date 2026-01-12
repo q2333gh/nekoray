@@ -146,3 +146,8 @@ void MainWindow::on_masterLogBrowser_customContextMenuRequested(const QPoint &po
 
     menu->exec(ui->masterLogBrowser->viewport()->mapToGlobal(pos));
 }
+
+void MainWindow::on_toolButton_clear_log_clicked() {
+    qvLogDocument->clear();
+    ui->masterLogBrowser->clear();
+}

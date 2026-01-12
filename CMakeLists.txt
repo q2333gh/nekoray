@@ -33,7 +33,20 @@ if (WIN32)
     if (MSVC)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
         set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
+        # Additional MSVC build speed optimizations
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")  # Multi-processor compilation
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus")  # Faster standard library checks
     endif ()
+endif ()
+
+# Build speed optimizations
+# Unity builds can significantly speed up compilation by combining multiple source files
+# Set to a reasonable batch size (e.g., 8 files per unity build) to balance speed and memory
+option(NEKO_UNITY_BUILD "Enable Unity Builds for faster compilation" OFF)
+if (NEKO_UNITY_BUILD)
+    set(CMAKE_UNITY_BUILD ON)
+    set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
+    message(STATUS "Unity builds enabled (batch size: ${CMAKE_UNITY_BUILD_BATCH_SIZE})")
 endif ()
 
 # Find Qt

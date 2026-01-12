@@ -243,20 +243,32 @@ def cmake_build(build: Path, env: dict, use_ninja: bool) -> None:
     import multiprocessing
     import math
 
-    cpu_count = max(1, math.floor(multiprocessing.cpu_count() * 0.7))
-    args = ["cmake", "--build", str(build), "--config", "Release"]
-    if use_ninja:
-        args.extend(["--", "-j", str(cpu_count)])
-    else:
+    # Use all CPU cores for maximum speed (0.9 was conservative)
+    # Modern systems can handle 100% CPU usage during compilation
+    cpu_count = multiprocessing.cpu_count()
+    build_env = env.copy()
+    build_env.setdefault("CMAKE_BUILD_PARALLEL_LEVEL", str(cpu_count))
+
+    args = [
+        "cmake",
+        "--build",
+        str(build),
+        "--config",
+        "Release",
+        "--parallel",
+        str(cpu_count),
+    ]
+    if not use_ninja:
         args.extend(
             [
                 "--",
-                f"/m:{cpu_count}",
                 "/p:TrackFileAccess=false",
                 "/p:EnableMinimalRebuild=false",
+                "/p:UseMultiToolTask=true",  # Enable parallel compilation in MSBuild
+                "/p:EnforceProcessCountAcrossBuilds=true",  # Better parallelization
             ]
         )
-    run_command(args, env=env)
+    run_command(args, env=build_env)
 
 
 def cmake_install(build: Path, env: dict) -> None:
@@ -600,6 +612,8 @@ def main() -> None:
             f"-DCMAKE_PREFIX_PATH={qt_root}",
             "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false",
             "-DQT_NO_PACKAGE_VERSION_CHECK=TRUE",
+            # Optional: Enable Unity Builds for faster compilation (can be enabled via -DNEKO_UNITY_BUILD=ON)
+            # "-DNEKO_UNITY_BUILD=ON",  # Uncomment to enable (may cause issues with some code patterns)
         ],
     )
     cmake_build(build_dir, env, use_ninja)

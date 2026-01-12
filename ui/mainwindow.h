@@ -4,6 +4,8 @@
 
 #include "main/NekoGui.hpp"
 
+class MenuBuilder;
+
 #ifndef MW_INTERFACE
 
 #include <QTime>
@@ -66,6 +68,9 @@ public:
     void RegisterHotkey(bool unregister);
 
     bool StopVPNProcess(bool unconditional = false);
+    
+    // Get menu builder for access from other files
+    MenuBuilder* menuBuilder() const { return m_menuBuilder; }
 
 signals:
 
@@ -82,6 +87,7 @@ public slots:
 private slots:
 
     void on_masterLogBrowser_customContextMenuRequested(const QPoint &pos);
+    void on_toolButton_clear_log_clicked();
 
     void on_menu_basic_settings_triggered();
 
