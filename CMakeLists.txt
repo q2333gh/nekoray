@@ -187,6 +187,8 @@ set(PROJECT_SOURCES
         ui/mainwindow_grpc.cpp
         ui/mainwindow.cpp
         ui/mainwindow.h
+        ui/mainwindow_menubuilder.cpp
+        ui/mainwindow_menubuilder.h
         ui/mainwindow.ui
         ui/mainwindow_dialog.cpp
         ui/mainwindow_menu.cpp

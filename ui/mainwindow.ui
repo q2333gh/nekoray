@@ -526,6 +526,10 @@
     </item>
    </layout>
   </widget>
+  <!-- ========================================================================
+       MENU BAR
+       Menu structure: See ui/MENU_STRUCTURE.md for documentation
+       ======================================================================== -->
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
@@ -535,6 +539,7 @@
      <height>32</height>
     </rect>
    </property>
+   <!-- Program Menu -->
    <widget class="QMenu" name="menu_program">
     <property name="title">
      <string>Program</string>
@@ -584,6 +589,7 @@
     <addaction name="actionPlaceholder2"/>
     <addaction name="actionPlaceholder3"/>
    </widget>
+   <!-- Preferences Menu -->
    <widget class="QMenu" name="menu_preferences">
     <property name="title">
      <string>Preferences</string>
@@ -595,6 +601,7 @@
     <addaction name="menu_hotkey_settings"/>
     <addaction name="menu_open_config_folder"/>
    </widget>
+   <!-- Server Menu -->
    <widget class="QMenu" name="menu_server">
     <property name="title">
      <string>Server</string>
@@ -656,6 +663,11 @@
    <addaction name="menu_preferences"/>
    <addaction name="menu_server"/>
   </widget>
+  <!-- ========================================================================
+       ACTIONS - All menu actions are defined below
+       Actions can be reorganized into menus programmatically for better maintainability
+       ======================================================================== -->
+  <!-- Program Menu Actions -->
   <action name="menu_exit">
    <property name="text">
     <string>Exit</string>
@@ -685,16 +697,19 @@
     <bool>false</bool>
    </property>
   </action>
+  <!-- Placeholder actions for Windows tray menu bug fix -->
   <action name="actionShow_window">
    <property name="text">
     <string>Show Window</string>
    </property>
   </action>
+  <!-- Preferences Menu Actions -->
   <action name="menu_basic_settings">
    <property name="text">
     <string>Basic Settings</string>
    </property>
   </action>
+  <!-- Server Menu Actions -->
   <action name="menu_add_from_input">
    <property name="text">
     <string>New profile</string>
@@ -810,6 +825,7 @@
     <string>Scan QR Code</string>
    </property>
   </action>
+  <!-- System Proxy Actions -->
   <action name="menu_spmode_system_proxy">
    <property name="checkable">
     <bool>true</bool>
