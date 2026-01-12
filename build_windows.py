@@ -16,6 +16,7 @@ from pathlib import Path
 
 CONFIG = "Release"
 DEPS_BUILD_TIMEOUT = 900
+DOWNLOAD_TIMEOUT = 300
 QT_REL_PATH = Path("qt_lib/qt650")
 DEPS_BUILD_DIR_REL = Path("libs/deps")
 DEPS_ROOT_REL = DEPS_BUILD_DIR_REL / "built"
@@ -225,8 +226,11 @@ def download_resources(repo_root: Path, release_dir: Path) -> None:
         return
     info("Downloading public resources...")
     try:
-        run_command(["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir)])
-    except subprocess.CalledProcessError:
+        run_command(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir)],
+            timeout=DOWNLOAD_TIMEOUT,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         info("Public resource download failed; continuing.")
 
 
@@ -237,8 +241,11 @@ def download_core(repo_root: Path, release_dir: Path) -> None:
         return
     info("Downloading nekobox_core...")
     try:
-        run_command(["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir)])
-    except subprocess.CalledProcessError:
+        run_command(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-DestDir", str(release_dir)],
+            timeout=DOWNLOAD_TIMEOUT,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         info("nekobox_core download failed; continuing.")
 
 
