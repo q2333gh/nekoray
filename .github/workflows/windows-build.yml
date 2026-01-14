@@ -47,7 +47,6 @@ jobs:
       - name: Install MSVC compiler
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          toolset: 14.3
           arch: x64
 
       - name: Install Qt
