@@ -202,6 +202,9 @@ QList<QAction*> MenuBuilder::getAllActions() const {
     if (m_actionExit) actions << m_actionExit;
     if (m_actionStart) actions << m_actionStart;
     if (m_actionStop) actions << m_actionStop;
+    if (m_actionAddFromClipboard) actions << m_actionAddFromClipboard;
+    if (m_actionAddFromClipboard2) actions << m_actionAddFromClipboard2;
+    if (m_actionAddFromInput) actions << m_actionAddFromInput;
     if (m_actionStartWithSystem) actions << m_actionStartWithSystem;
     if (m_actionRememberLastProxy) actions << m_actionRememberLastProxy;
     if (m_actionAllowLAN) actions << m_actionAllowLAN;
@@ -210,5 +213,23 @@ QList<QAction*> MenuBuilder::getAllActions() const {
     if (m_actionSpmodeSystemProxy) actions << m_actionSpmodeSystemProxy;
     if (m_actionSpmodeVPN) actions << m_actionSpmodeVPN;
     if (m_actionSpmodeDisabled) actions << m_actionSpmodeDisabled;
+    if (m_actionSelectAll) actions << m_actionSelectAll;
+    if (m_actionMove) actions << m_actionMove;
+    if (m_actionClone) actions << m_actionClone;
+    if (m_actionResetTraffic) actions << m_actionResetTraffic;
+    if (m_actionDelete) actions << m_actionDelete;
+    if (m_actionQR) actions << m_actionQR;
+    if (m_actionExportConfig) actions << m_actionExportConfig;
+    if (m_actionCopyLinks) actions << m_actionCopyLinks;
+    if (m_actionCopyLinksNKR) actions << m_actionCopyLinksNKR;
+    if (m_actionTCPPing) actions << m_actionTCPPing;
+    if (m_actionURLTest) actions << m_actionURLTest;
+    if (m_actionFullTest) actions << m_actionFullTest;
+    if (m_actionStopTesting) actions << m_actionStopTesting;
+    if (m_actionClearTestResult) actions << m_actionClearTestResult;
+    if (m_actionResolveDomain) actions << m_actionResolveDomain;
+    if (m_actionRemoveUnavailable) actions << m_actionRemoveUnavailable;
+    if (m_actionDeleteRepeat) actions << m_actionDeleteRepeat;
+    if (m_actionUpdateSubscription) actions << m_actionUpdateSubscription;
     return actions;
 }

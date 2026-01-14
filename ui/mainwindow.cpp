@@ -72,6 +72,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Build menus dynamically
     m_menuBuilder = new MenuBuilder(this);
     m_menuBuilder->buildMenus(ui->menubar);
+    addActions(m_menuBuilder->getAllActions());
     
     //
     connect(m_menuBuilder->actionStart(), &QAction::triggered, this, [=]() {
@@ -272,6 +273,29 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(m_menuBuilder->actionRestartProxy(), &QAction::triggered, this, [=] { if (NekoGui::dataStore->started_id>=0) neko_start(NekoGui::dataStore->started_id); });
     connect(m_menuBuilder->actionRestartProgram(), &QAction::triggered, this, [=] { MW_dialog_message("", "RestartProgram"); });
     connect(m_menuBuilder->actionShowWindow(), &QAction::triggered, this, [=] { tray->activated(QSystemTrayIcon::ActivationReason::Trigger); });
+    connect(m_menuBuilder->actionExit(), &QAction::triggered, this, &MainWindow::on_menu_exit_triggered);
+    connect(m_menuBuilder->actionManageGroups(), &QAction::triggered, this, &MainWindow::on_menu_manage_groups_triggered);
+    connect(m_menuBuilder->actionBasicSettings(), &QAction::triggered, this, &MainWindow::on_menu_basic_settings_triggered);
+    connect(m_menuBuilder->actionRoutingSettings(), &QAction::triggered, this, &MainWindow::on_menu_routing_settings_triggered);
+    connect(m_menuBuilder->actionVPNSettings(), &QAction::triggered, this, &MainWindow::on_menu_vpn_settings_triggered);
+    connect(m_menuBuilder->actionHotkeySettings(), &QAction::triggered, this, &MainWindow::on_menu_hotkey_settings_triggered);
+    connect(m_menuBuilder->actionAddFromInput(), &QAction::triggered, this, &MainWindow::on_menu_add_from_input_triggered);
+    connect(m_menuBuilder->actionAddFromClipboard(), &QAction::triggered, this, &MainWindow::on_menu_add_from_clipboard_triggered);
+    connect(m_menuBuilder->actionScanQR(), &QAction::triggered, this, &MainWindow::on_menu_scan_qr_triggered);
+    connect(m_menuBuilder->actionSelectAll(), &QAction::triggered, this, &MainWindow::on_menu_select_all_triggered);
+    connect(m_menuBuilder->actionMove(), &QAction::triggered, this, &MainWindow::on_menu_move_triggered);
+    connect(m_menuBuilder->actionClone(), &QAction::triggered, this, &MainWindow::on_menu_clone_triggered);
+    connect(m_menuBuilder->actionResetTraffic(), &QAction::triggered, this, &MainWindow::on_menu_reset_traffic_triggered);
+    connect(m_menuBuilder->actionDelete(), &QAction::triggered, this, &MainWindow::on_menu_delete_triggered);
+    connect(m_menuBuilder->actionCopyLinks(), &QAction::triggered, this, &MainWindow::on_menu_copy_links_triggered);
+    connect(m_menuBuilder->actionCopyLinksNKR(), &QAction::triggered, this, &MainWindow::on_menu_copy_links_nkr_triggered);
+    connect(m_menuBuilder->actionExportConfig(), &QAction::triggered, this, &MainWindow::on_menu_export_config_triggered);
+    connect(m_menuBuilder->actionProfileDebugInfo(), &QAction::triggered, this, &MainWindow::on_menu_profile_debug_info_triggered);
+    connect(m_menuBuilder->actionClearTestResult(), &QAction::triggered, this, &MainWindow::on_menu_clear_test_result_triggered);
+    connect(m_menuBuilder->actionResolveDomain(), &QAction::triggered, this, &MainWindow::on_menu_resolve_domain_triggered);
+    connect(m_menuBuilder->actionRemoveUnavailable(), &QAction::triggered, this, &MainWindow::on_menu_remove_unavailable_triggered);
+    connect(m_menuBuilder->actionDeleteRepeat(), &QAction::triggered, this, &MainWindow::on_menu_delete_repeat_triggered);
+    connect(m_menuBuilder->actionUpdateSubscription(), &QAction::triggered, this, &MainWindow::on_menu_update_subscription_triggered);
     //
     connect(m_menuBuilder->menuProgram(), &QMenu::aboutToShow, this, [=]() {
         m_menuBuilder->actionRememberLastProxy()->setChecked(NekoGui::dataStore->remember_enable);
@@ -608,6 +632,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 }
 
 MainWindow::~MainWindow() {
+    delete m_menuBuilder;
     delete ui;
 }
 

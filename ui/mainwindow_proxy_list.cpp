@@ -1,5 +1,6 @@
 #include "./ui_mainwindow.h"
 #include "mainwindow.h"
+#include "mainwindow_menubuilder.h"
 
 #include "db/ProxyEntity.hpp"
 #include "ui/edit/dialog_edit_profile.h"

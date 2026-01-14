@@ -3,8 +3,10 @@
 
 #include "rpc/gRPC.h"
 
+#include <QAbstractButton>
 #include <QDesktopServices>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QUrl>
 
 void MainWindow::CheckUpdate() {

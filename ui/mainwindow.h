@@ -68,9 +68,13 @@ public:
     void RegisterHotkey(bool unregister);
 
     bool StopVPNProcess(bool unconditional = false);
+
+    bool InitializeCoreProcess();
     
+#ifndef MW_INTERFACE
     // Get menu builder for access from other files
     MenuBuilder* menuBuilder() const { return m_menuBuilder; }
+#endif
 
 signals:
 
@@ -148,6 +152,7 @@ private:
     QSystemTrayIcon *tray;
     QShortcut *shortcut_ctrl_f = new QShortcut(QKeySequence("Ctrl+F"), this);
     QShortcut *shortcut_esc = new QShortcut(QKeySequence("Esc"), this);
+    MenuBuilder *m_menuBuilder = nullptr;
     //
     NekoGui_sys::CoreProcess *core_process;
     qint64 vpn_pid = 0;

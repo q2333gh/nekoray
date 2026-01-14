@@ -5,6 +5,7 @@
 #include "sys/ExternalProcess.hpp"
 #include "fmt/AbstractBean.hpp"
 
+#include "db/Database.hpp"
 #include "db/ConfigBuilder.hpp"
 #include "db/traffic/TrafficLooper.hpp"
 #include "rpc/gRPC.h"
@@ -19,6 +20,10 @@
 #include <QDir>
 #include <QThread>
 #include <QMessageBox>
+
+#ifndef NKR_NO_GRPC
+using namespace NekoGui_rpc;
+#endif
 
 // Forward declaration
 extern bool DownloadCoreExecutable(const QString &destDir);
@@ -64,7 +69,7 @@ static QString FindCoreExecutablePath() {
 }
 
 // Helper to initialize core process
-static bool InitializeCoreProcess(MainWindow *mw) {
+bool MainWindow::InitializeCoreProcess() {
     QString core_path = FindCoreExecutablePath();
     
     if (core_path.isEmpty()) {
@@ -117,18 +122,18 @@ static bool InitializeCoreProcess(MainWindow *mw) {
     
     runOnUiThread(
         [=] {
-            if (mw->core_process == nullptr) {
-                mw->core_process = new NekoGui_sys::CoreProcess(found_core_path, args);
+            if (core_process == nullptr) {
+                core_process = new NekoGui_sys::CoreProcess(found_core_path, args);
                 WriteCrashLog("core_process created successfully");
                 
                 if (NekoGui::dataStore->remember_enable && NekoGui::dataStore->remember_id >= 0) {
-                    mw->core_process->start_profile_when_core_is_up = NekoGui::dataStore->remember_id;
+                    core_process->start_profile_when_core_is_up = NekoGui::dataStore->remember_id;
                 }
                 
-                mw->core_process->Start();
+                core_process->Start();
                 WriteCrashLog("core_process started");
                 
-                mw->setup_grpc();
+                setup_grpc();
                 WriteCrashLog("gRPC setup completed");
             }
         },
@@ -136,7 +141,7 @@ static bool InitializeCoreProcess(MainWindow *mw) {
     
     QThread::msleep(1000);
     
-    if (mw->core_process == nullptr) {
+    if (core_process == nullptr) {
         WriteCrashLog("CRITICAL: core_process is still nullptr after initialization attempt");
         runOnUiThread([=] {
             MessageBoxWarning(software_name, "Failed to initialize core process. Please restart the application.");
@@ -157,7 +162,7 @@ void MainWindow::neko_start(int _id) {
 
     // Check core process first, create if not exists
     if (core_process == nullptr) {
-        if (!InitializeCoreProcess(this)) {
+        if (!InitializeCoreProcess()) {
             return;
         }
     }
@@ -218,7 +223,7 @@ void MainWindow::neko_start(int _id) {
     WriteCrashLog(QString("Group is valid: gid=%1, name=%2").arg(group->id).arg(group->name));
 
     WriteCrashLog("Calling BuildConfig...");
-    auto result = BuildConfig(ent, false, false);
+    auto result = NekoGui::BuildConfig(ent, false, false);
     if (!result->error.isEmpty()) {
         WriteCrashLog(QString("BuildConfig error: %1").arg(result->error));
         MessageBoxWarning("BuildConfig return error", result->error);

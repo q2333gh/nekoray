@@ -1,5 +1,6 @@
 #include "./ui_mainwindow.h"
 #include "mainwindow.h"
+#include "mainwindow_menubuilder.h"
 
 #ifndef NKR_NO_QHOTKEY
 

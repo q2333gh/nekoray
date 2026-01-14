@@ -1,7 +1,9 @@
 #include "./ui_mainwindow.h"
 #include "mainwindow.h"
 
+#include "db/Database.hpp"
 #include "db/ConfigBuilder.hpp"
+#include "db/traffic/TrafficLooper.hpp"
 #include "rpc/gRPC.h"
 #include "ui/widget/MessageBoxTimer.h"
 
@@ -47,21 +49,6 @@ std::list<std::shared_ptr<NekoGui_sys::ExternalProcess>> CreateExtCFromExtR(cons
 #ifndef NKR_NO_GRPC
 using namespace NekoGui_rpc;
 #endif
-
-void MainWindow::setup_grpc() {
-#ifndef NKR_NO_GRPC
-    // Setup Connection
-    defaultClient = new Client(
-        [=](const QString &errStr) {
-            MW_show_log("[Error] gRPC: " + errStr);
-        },
-        "127.0.0.1:" + Int2String(NekoGui::dataStore->core_port), NekoGui::dataStore->core_token);
-
-    // Looper
-    runOnNewThread([=] { NekoGui_traffic::trafficLooper->Loop(); });
-#endif
-}
-
 // 测速
 
 inline bool speedtesting = false;
@@ -201,7 +188,7 @@ void MainWindow::speedtest_current_group(int mode, bool test_group) {
                     QSemaphore extSem;
 
                     if (mode == libcore::TestMode::UrlTest || mode == libcore::FullTest) {
-                        auto c = BuildConfig(profile, true, false);
+                        auto c = NekoGui::BuildConfig(profile, true, false);
                         if (!c->error.isEmpty()) {
                             profile->full_test_report = c->error;
                             profile->Save();
