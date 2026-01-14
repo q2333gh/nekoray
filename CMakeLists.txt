@@ -213,6 +213,7 @@ set(PROJECT_SOURCES
         ui/mainwindow_vpn.cpp
         ui/mainwindow_core_process.cpp
         ui/mainwindow_core_download.cpp
+        ui/mainwindow_ensure_connect.cpp
         ui/mainwindow_speedtest.cpp
         ui/mainwindow_update.cpp
 

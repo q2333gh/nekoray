@@ -194,11 +194,11 @@
                       </widget>
                     </item>
                     <item>
-                      <layout class="QHBoxLayout" name="horizontalLayout_auto_urltest">
+                      <layout class="QHBoxLayout" name="horizontalLayout_ensure_connect">
                         <item>
-                          <widget class="QToolButton" name="toolButton_auto_urltest">
+                          <widget class="QToolButton" name="toolButton_ensure_connect">
                             <property name="text">
-                              <string>Auto URLTest</string>
+                              <string>Ensure Connect</string>
                             </property>
                             <property name="checkable">
                               <bool>true</bool>
@@ -209,7 +209,7 @@
                           </widget>
                         </item>
                         <item>
-                          <widget class="QSpinBox" name="spinBox_auto_urltest_interval">
+                          <widget class="QSpinBox" name="spinBox_ensure_connect_interval">
                             <property name="minimum">
                               <number>10</number>
                             </property>

@@ -165,12 +165,12 @@ private:
     std::shared_ptr<NekoGui::ProxyEntity> running;
     QString traffic_update_cache;
     QTime last_test_time;
-    QTimer *auto_urltest_timer = nullptr;
-    QTimer *auto_urltest_eval_timer = nullptr;
-    bool auto_urltest_inflight = false;
-    int auto_urltest_fail_count = 0;
-    int auto_urltest_target_id = -1;
-    int auto_urltest_prev_latency = 0;
+    QTimer *ensure_connect_timer = nullptr;
+    QTimer *ensure_connect_eval_timer = nullptr;
+    bool ensure_connect_inflight = false;
+    int ensure_connect_fail_count = 0;
+    int ensure_connect_target_id = -1;
+    int ensure_connect_prev_latency = 0;
     //
     int proxy_last_order = -1;
     bool select_mode = false;
@@ -213,6 +213,8 @@ private:
     static void stop_core_daemon();
 
     void CheckUpdate();
+
+    void setup_ensure_connect_controls();
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;

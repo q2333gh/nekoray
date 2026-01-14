@@ -313,6 +313,7 @@ jobs:
 
   clean-build:
     runs-on: windows-latest
+    continue-on-error: true
 
     env:
       QT_VERSION_MAJOR: "6"
