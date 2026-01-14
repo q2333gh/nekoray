@@ -26,7 +26,7 @@ jobs:
       QT_VERSION: "6.5.3"
       QT_HOST: "windows"
       QT_TARGET: "desktop"
-      QT_ARCH: "win64_msvc2019_64"
+      QT_ARCH: "win64_msvc2022_64"
 
     steps:
       - name: Checkout repository
@@ -43,6 +43,11 @@ jobs:
         run: |
           pip install aqtinstall
 
+      - name: Install MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install Qt
         run: |
           python -m aqt install-qt ^
@@ -52,7 +57,7 @@ jobs:
 
       - name: Configure CMake (Release, Qt6, minimal external deps)
         run: |
-          set QT_ROOT=C:\Qt\%QT_VERSION%\msvc2019_64
+          set QT_ROOT=C:\Qt\%QT_VERSION%\msvc2022_64
           cmake -S . -B build ^
             -DQT_VERSION_MAJOR=%QT_VERSION_MAJOR% ^
             -DNKR_NO_GRPC=ON ^

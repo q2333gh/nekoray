@@ -10,6 +10,7 @@ on:
 
 jobs:
   update:
+    if: secrets.DEPLOY_KEY != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

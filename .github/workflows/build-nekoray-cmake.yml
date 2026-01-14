@@ -79,6 +79,7 @@ jobs:
       # Only generate dummy SSH key for Windows, not for Linux/Docker
       - name: Generate dummy SSH key (Windows only)
         if: matrix.platform == 'windows-2022'
+        shell: bash
         run: |
           mkdir -p /home/builder/.ssh
           ssh-keygen -t rsa -b 2048 -f /home/builder/.ssh/private -N "" -q
