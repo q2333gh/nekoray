@@ -124,6 +124,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     connect(ui->toolButton_update, &QToolButton::clicked, this, [=] { runOnNewThread([=] { CheckUpdate(); }); });
     connect(ui->toolButton_url_test, &QToolButton::clicked, this, [=] { speedtest_current_group(1, true); });
+    connect(ui->toolButton_restart_server, &QToolButton::clicked, this, [=] {
+        if (NekoGui::dataStore->started_id >= 0) neko_start(NekoGui::dataStore->started_id);
+    });
+    connect(ui->toolButton_restart_program, &QToolButton::clicked, this, [=] { MW_dialog_message("", "RestartProgram"); });
     
     // Set AccessibleName for WinAppDriver automation (only for QWidget, not QAction)
     ui->toolButton_url_test->setAccessibleName("URLTestButton");

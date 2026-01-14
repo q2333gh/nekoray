@@ -297,7 +297,7 @@ void MainWindow::neko_start(int _id) {
     };
 
     if (!mu_starting.tryLock()) {
-        MessageBoxWarning(software_name, "Another profile is starting...");
+        WriteCrashLog("neko_start ignored: another start is already in progress");
         return;
     }
     if (!mu_stopping.tryLock()) {
