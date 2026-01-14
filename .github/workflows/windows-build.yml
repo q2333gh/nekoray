@@ -26,7 +26,7 @@ jobs:
       QT_VERSION: "6.5.3"
       QT_HOST: "windows"
       QT_TARGET: "desktop"
-      QT_ARCH: "win64_msvc2022_64"
+      QT_ARCH: "win64_msvc2019_64"
 
     steps:
       - name: Checkout repository
@@ -58,7 +58,7 @@ jobs:
 
       - name: Configure CMake (Release, Qt6, minimal external deps)
         run: |
-          set QT_ROOT=C:\Qt\%QT_VERSION%\msvc2022_64
+          set QT_ROOT=C:\Qt\%QT_VERSION%\msvc2019_64
           cmake -S . -B build ^
             -DQT_VERSION_MAJOR=%QT_VERSION_MAJOR% ^
             -DNKR_NO_GRPC=ON ^
@@ -99,7 +99,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2022_64\bin"
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
           $buildReleaseDir = "build\Release"
           Set-Location $buildReleaseDir
           
@@ -118,7 +118,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2022_64\bin"
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
           $buildReleaseDir = "build\Release"
           
           # Check for OpenSSL DLLs in various possible locations

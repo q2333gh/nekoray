@@ -456,26 +456,59 @@ def ensure_protobuf(
     )
 
 
-def release_dir(build_dir: Path, use_ninja: bool) -> Path:
-    return build_dir if use_ninja else build_dir / CONFIG
+class BuildContext:
+    def __init__(
+        self,
+        repo_root: Path,
+        qt_rel_path: Path,
+        use_ninja: bool,
+        generator: str,
+        env: dict,
+    ) -> None:
+        self.repo_root = repo_root
+        self.qt_rel_path = qt_rel_path
+        self.use_ninja = use_ninja
+        self.generator = generator
+        self.env = env
+        self.build_dir = repo_root / ("build_ninja" if use_ninja else "build")
+        self.deps_root = repo_root / DEPS_ROOT
+
+    def qt_root(self) -> Path:
+        return self.repo_root / self.qt_rel_path
+
+    def release_dir(self) -> Path:
+        return self.build_dir if self.use_ninja else self.build_dir / CONFIG
 
 
-def copy_executable(build_dir: Path, repo_root: Path, use_ninja: bool) -> None:
-    target = release_dir(build_dir, use_ninja) / "nekobox.exe"
+class PlatformAdapter:
+    def post_build(self, context: BuildContext) -> None:
+        return
+
+
+class WindowsPlatformAdapter(PlatformAdapter):
+    def post_build(self, context: BuildContext) -> None:
+        download_resources(context)
+        download_core(context)
+        deploy_qt_runtime(context)
+        copy_openssl_libraries(context)
+
+
+def copy_executable(context: BuildContext) -> None:
+    target = context.release_dir() / "nekobox.exe"
     require_path(target, "Built executable not found")
-    dest = repo_root / "nekobox.exe"
+    dest = context.repo_root / "nekobox.exe"
     shutil.copy2(target, dest)
 
 
-def download_resources(repo_root: Path, build_dir: Path) -> None:
-    script = repo_root / "libs" / "download_resources.py"
+def download_resources(context: BuildContext) -> None:
+    script = context.repo_root / "libs" / "download_resources.py"
     if not script.exists():
         info("download_resources.py missing; skipping resources")
         return
-    
+
     # Create resources cache directory
     RESOURCES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     # Download to cache first, then copy to build directory
     info("Downloading public resources (using cache)")
     try:
@@ -489,11 +522,11 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
             ],
             timeout=DOWNLOAD_TIMEOUT,
         )
-        
+
         # Copy cached resources to build directory
-        release_dir_path = release_dir(build_dir, False)
+        release_dir_path = context.release_dir()
         release_dir_path.mkdir(parents=True, exist_ok=True)
-        
+
         resource_files = ["geoip.dat", "geosite.dat", "geoip.db", "geosite.db"]
         for resource_file in resource_files:
             cached_file = RESOURCES_CACHE_DIR / resource_file
@@ -501,21 +534,21 @@ def download_resources(repo_root: Path, build_dir: Path) -> None:
                 dest_file = release_dir_path / resource_file
                 shutil.copy2(cached_file, dest_file)
                 info(f"Copied {resource_file} from cache to build directory")
-        
+
         # Copy res/public files if they exist
-        public_res_dir = repo_root / "res" / "public"
+        public_res_dir = context.repo_root / "res" / "public"
         if public_res_dir.exists():
             for file in public_res_dir.iterdir():
                 if file.is_file():
                     shutil.copy2(file, release_dir_path / file.name)
                     info(f"Copied {file.name} from res/public")
-                    
+
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         info("Resource download failed; continuing.")
 
 
-def download_core(repo_root: Path, build_dir: Path) -> None:
-    script = repo_root / "libs" / "download_core.py"
+def download_core(context: BuildContext) -> None:
+    script = context.repo_root / "libs" / "download_core.py"
     if not script.exists():
         info("download_core.py missing; skipping core download")
         return
@@ -526,7 +559,7 @@ def download_core(repo_root: Path, build_dir: Path) -> None:
                 sys.executable,
                 str(script),
                 "--dest-dir",
-                str(release_dir(build_dir, False)),
+                str(context.release_dir()),
             ],
             timeout=DOWNLOAD_TIMEOUT,
         )
@@ -534,7 +567,9 @@ def download_core(repo_root: Path, build_dir: Path) -> None:
         info("nekobox_core download failed; continuing.")
 
 
-def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
+def deploy_qt_runtime(context: BuildContext) -> None:
+    qt_root = context.qt_root()
+    target_dir = context.release_dir()
     watchdog = qt_root / "bin" / "windeployqt.exe"
     if not watchdog.exists():
         info(f"{watchdog} not found; skipping Qt deployment.")
@@ -572,7 +607,9 @@ def deploy_qt_runtime(qt_root: Path, target_dir: Path) -> None:
     run_command(cmd, env=env)
 
 
-def copy_openssl_libraries(qt_root: Path, target_dir: Path) -> None:
+def copy_openssl_libraries(context: BuildContext) -> None:
+    qt_root = context.qt_root()
+    target_dir = context.release_dir()
     ssl_files = ["libcrypto-3-x64.dll", "libssl-3-x64.dll"]
     src_dir = qt_root / "bin"
     for name in ssl_files:
@@ -587,43 +624,49 @@ def copy_openssl_libraries(qt_root: Path, target_dir: Path) -> None:
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parent
-    qt_root = require_path(
-        repo_root / QT_REL_PATH, f"Qt directory missing at {QT_REL_PATH}"
-    )
-
     use_ninja, generator, env = detect_generator()
-    build_dir = repo_root / ("build_ninja" if use_ninja else "build")
-    deps_root = repo_root / DEPS_ROOT
-    deps_root.parent.mkdir(parents=True, exist_ok=True)
 
-    ensure_third_party(repo_root, deps_root, generator, env, use_ninja)
-    ensure_protobuf(repo_root, deps_root, generator, env, use_ninja)
-    ensure_qhotkey(repo_root)
+    context = BuildContext(
+        repo_root=repo_root,
+        qt_rel_path=QT_REL_PATH,
+        use_ninja=use_ninja,
+        generator=generator,
+        env=env,
+    )
+    require_path(context.qt_root(), f"Qt directory missing at {QT_REL_PATH}")
+    context.deps_root.parent.mkdir(parents=True, exist_ok=True)
+
+    platform = WindowsPlatformAdapter()
+
+    ensure_third_party(
+        context.repo_root, context.deps_root, context.generator, context.env, context.use_ninja
+    )
+    ensure_protobuf(
+        context.repo_root, context.deps_root, context.generator, context.env, context.use_ninja
+    )
+    ensure_qhotkey(context.repo_root)
 
     cmake_configure(
-        repo_root,
-        build_dir,
-        build_dir,  # install prefix (not used for main project, but required by function signature)
-        generator,
-        env,
+        context.repo_root,
+        context.build_dir,
+        context.build_dir,  # install prefix (not used for main project, but required by function signature)
+        context.generator,
+        context.env,
         [
             "-DQT_VERSION_MAJOR=6",
-            f"-DNKR_LIBS={deps_root}",
-            f"-DCMAKE_PREFIX_PATH={qt_root}",
+            f"-DNKR_LIBS={context.deps_root}",
+            f"-DCMAKE_PREFIX_PATH={context.qt_root()}",
             "-DCMAKE_VS_GLOBALS=TrackFileAccess=false;EnableMinimalRebuild=false",
             "-DQT_NO_PACKAGE_VERSION_CHECK=TRUE",
             # Optional: Enable Unity Builds for faster compilation (can be enabled via -DNEKO_UNITY_BUILD=ON)
             # "-DNEKO_UNITY_BUILD=ON",  # Uncomment to enable (may cause issues with some code patterns)
         ],
     )
-    cmake_build(build_dir, env, use_ninja)
-    cmake_install(build_dir, env)
+    cmake_build(context.build_dir, context.env, context.use_ninja)
+    cmake_install(context.build_dir, context.env)
 
-    copy_executable(build_dir, repo_root, use_ninja)
-    download_resources(repo_root, build_dir)
-    download_core(repo_root, build_dir)
-    deploy_qt_runtime(qt_root, release_dir(build_dir, use_ninja))
-    copy_openssl_libraries(qt_root, release_dir(build_dir, use_ninja))
+    copy_executable(context)
+    platform.post_build(context)
 
     info("Build completed.")
 
