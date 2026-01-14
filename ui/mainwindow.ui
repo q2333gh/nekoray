@@ -529,32 +529,6 @@
                 </property>
               </widget>
             </item>
-            <item>
-              <widget class="QLabel" name="label_bottom_placeholder_2">
-                <property name="text">
-                  <string>&#160;</string>
-                </property>
-                <property name="minimumSize">
-                  <size>
-                    <width>0</width>
-                    <height>4</height>
-                  </size>
-                </property>
-              </widget>
-            </item>
-            <item>
-              <widget class="QLabel" name="label_bottom_placeholder_3">
-                <property name="text">
-                  <string>&#160;</string>
-                </property>
-                <property name="minimumSize">
-                  <size>
-                    <width>0</width>
-                    <height>4</height>
-                  </size>
-                </property>
-              </widget>
-            </item>
           </layout>
         </item>
       </layout>

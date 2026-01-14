@@ -75,13 +75,9 @@ void MenuBuilder::buildProgramMenu() {
     m_menuProgram->addAction(m_actionRestartProgram);
     m_menuProgram->addAction(m_actionExit);
     
-    // Add placeholders for Windows tray menu bug fix
+    // Add placeholder for Windows tray menu bug fix
     m_actionPlaceholder1 = createPlaceholderAction();
-    m_actionPlaceholder2 = createPlaceholderAction();
-    m_actionPlaceholder3 = createPlaceholderAction();
     m_menuProgram->addAction(m_actionPlaceholder1);
-    m_menuProgram->addAction(m_actionPlaceholder2);
-    m_menuProgram->addAction(m_actionPlaceholder3);
 }
 
 void MenuBuilder::buildPreferencesMenu() {
