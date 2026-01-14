@@ -128,6 +128,77 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         if (NekoGui::dataStore->started_id >= 0) neko_start(NekoGui::dataStore->started_id);
     });
     connect(ui->toolButton_restart_program, &QToolButton::clicked, this, [=] { MW_dialog_message("", "RestartProgram"); });
+    auto_urltest_timer = new QTimer(this);
+    auto_urltest_timer->setSingleShot(false);
+    auto_urltest_eval_timer = new QTimer(this);
+    auto_urltest_eval_timer->setSingleShot(true);
+    auto update_auto_urltest_interval = [=] {
+        auto interval_sec = ui->spinBox_auto_urltest_interval->value();
+        auto_urltest_timer->setInterval(interval_sec * 1000);
+    };
+    update_auto_urltest_interval();
+    connect(ui->spinBox_auto_urltest_interval,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            [=](int) {
+                update_auto_urltest_interval();
+                if (ui->toolButton_auto_urltest->isChecked() && !auto_urltest_timer->isActive()) {
+                    auto_urltest_timer->start();
+                }
+            });
+    connect(ui->toolButton_auto_urltest, &QToolButton::toggled, this, [=](bool checked) {
+        auto_urltest_fail_count = 0;
+        auto_urltest_inflight = false;
+        auto_urltest_target_id = -1;
+        if (checked) {
+            update_auto_urltest_interval();
+            auto_urltest_timer->start();
+        } else {
+            auto_urltest_timer->stop();
+            auto_urltest_eval_timer->stop();
+        }
+    });
+    connect(auto_urltest_timer, &QTimer::timeout, this, [=] {
+        if (auto_urltest_inflight) return;
+        auto selected = get_now_selected_list();
+        if (selected.isEmpty()) {
+            auto_urltest_fail_count = 0;
+            return;
+        }
+        auto_urltest_target_id = selected.first()->id;
+        auto_urltest_prev_latency = selected.first()->latency;
+        auto_urltest_inflight = true;
+        if (m_menuBuilder != nullptr && m_menuBuilder->menuServer() != nullptr) {
+            auto prev = m_menuBuilder->menuServer()->property("selected_or_group");
+            m_menuBuilder->menuServer()->setProperty("selected_or_group", 1);
+            speedtest_current_group(1, false);
+            m_menuBuilder->menuServer()->setProperty("selected_or_group", prev);
+        } else {
+            speedtest_current_group(1, false);
+        }
+        auto_urltest_eval_timer->start(12000);
+    });
+    connect(auto_urltest_eval_timer, &QTimer::timeout, this, [=] {
+        auto_urltest_inflight = false;
+        auto ent = NekoGui::profileManager->GetProfile(auto_urltest_target_id);
+        if (ent == nullptr) {
+            auto_urltest_fail_count = 0;
+            return;
+        }
+        if (ent->latency > 0) {
+            auto_urltest_fail_count = 0;
+            return;
+        }
+        auto_urltest_fail_count += 1;
+        if (auto_urltest_fail_count == 1) {
+            if (NekoGui::dataStore->started_id >= 0) {
+                neko_start(NekoGui::dataStore->started_id);
+            }
+        } else {
+            MW_dialog_message("", "RestartProgram");
+            auto_urltest_fail_count = 0;
+        }
+    });
     
     // Set AccessibleName for WinAppDriver automation (only for QWidget, not QAction)
     ui->toolButton_url_test->setAccessibleName("URLTestButton");

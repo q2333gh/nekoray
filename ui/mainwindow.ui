@@ -193,6 +193,39 @@
                         </property>
                       </widget>
                     </item>
+                    <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_auto_urltest">
+                        <item>
+                          <widget class="QToolButton" name="toolButton_auto_urltest">
+                            <property name="text">
+                              <string>Auto URLTest</string>
+                            </property>
+                            <property name="checkable">
+                              <bool>true</bool>
+                            </property>
+                            <property name="toolButtonStyle">
+                              <enum>Qt::ToolButtonTextOnly</enum>
+                            </property>
+                          </widget>
+                        </item>
+                        <item>
+                          <widget class="QSpinBox" name="spinBox_auto_urltest_interval">
+                            <property name="minimum">
+                              <number>10</number>
+                            </property>
+                            <property name="maximum">
+                              <number>3600</number>
+                            </property>
+                            <property name="value">
+                              <number>60</number>
+                            </property>
+                            <property name="suffix">
+                              <string> s</string>
+                            </property>
+                          </widget>
+                        </item>
+                      </layout>
+                    </item>
                   </layout>
                 </item>
               </layout>

@@ -165,6 +165,12 @@ private:
     std::shared_ptr<NekoGui::ProxyEntity> running;
     QString traffic_update_cache;
     QTime last_test_time;
+    QTimer *auto_urltest_timer = nullptr;
+    QTimer *auto_urltest_eval_timer = nullptr;
+    bool auto_urltest_inflight = false;
+    int auto_urltest_fail_count = 0;
+    int auto_urltest_target_id = -1;
+    int auto_urltest_prev_latency = 0;
     //
     int proxy_last_order = -1;
     bool select_mode = false;
