@@ -98,7 +98,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2022_64\bin"
           $buildReleaseDir = "build\Release"
           Set-Location $buildReleaseDir
           
@@ -117,7 +117,7 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2019_64\bin"
+          $qtBinPath = "C:\Qt\$env:QT_VERSION\msvc2022_64\bin"
           $buildReleaseDir = "build\Release"
           
           # Check for OpenSSL DLLs in various possible locations
