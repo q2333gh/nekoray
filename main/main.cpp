@@ -188,7 +188,9 @@ int main(int argc, char* argv[]) {
             return 0;
     }
     auto isLoaded = NekoGui::dataStore->Load();
+    const bool is_first_install = !isLoaded;
     if (!isLoaded) {
+        NekoGui::dataStore->active_routing = QStringLiteral("Bypass LAN and China");
         NekoGui::dataStore->Save();
     }
 
@@ -200,6 +202,10 @@ int main(int argc, char* argv[]) {
     NekoGui::dataStore->routing->fn = ROUTES_PREFIX + NekoGui::dataStore->active_routing;
     isLoaded = NekoGui::dataStore->routing->Load();
     if (!isLoaded) {
+        if (is_first_install) {
+            NekoGui::dataStore->routing = std::make_unique<NekoGui::Routing>(1);
+            NekoGui::dataStore->routing->fn = ROUTES_PREFIX + NekoGui::dataStore->active_routing;
+        }
         NekoGui::dataStore->routing->Save();
     }
 
