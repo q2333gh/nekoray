@@ -25,22 +25,22 @@ namespace NekoGui_sys {
         started = true;
 
         if (managed) {
-            connect(this, &QProcess::readyReadStandardOutput, this, [&]() {
+            connect(this, &QProcess::readyReadStandardOutput, this, [this]() {
                 auto log = readAllStandardOutput();
                 if (logCounter.fetchAndAddRelaxed(log.count("\n")) > NekoGui::dataStore->max_log_line) return;
                 MW_show_log_ext_vt100(log);
             });
-            connect(this, &QProcess::readyReadStandardError, this, [&]() {
+            connect(this, &QProcess::readyReadStandardError, this, [this]() {
                 MW_show_log_ext_vt100(readAllStandardError().trimmed());
             });
-            connect(this, &QProcess::errorOccurred, this, [&](QProcess::ProcessError error) {
+            connect(this, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
                 if (!killed) {
                     crashed = true;
                     MW_show_log_ext(tag, "errorOccurred:" + errorString());
                     MW_dialog_message("ExternalProcess", "Crashed");
                 }
             });
-            connect(this, &QProcess::stateChanged, this, [&](QProcess::ProcessState state) {
+            connect(this, &QProcess::stateChanged, this, [this](QProcess::ProcessState state) {
                 if (state == QProcess::NotRunning) {
                     if (killed) { // 用户命令退出
                         MW_show_log_ext(tag, "External core stopped");
@@ -94,26 +94,26 @@ namespace NekoGui_sys {
             setupLogFile.close();
         }
         
-        connect(this, &QProcess::readyReadStandardOutput, this, [&]() {
+        connect(this, &QProcess::readyReadStandardOutput, this, [this]() {
             auto log = readAllStandardOutput();
             QString logText = QString::fromUtf8(log);
-            
+
             // Debug: Always log to core_output.log for troubleshooting
-            static QFile *debugLogFile = nullptr;
+            static QFile debugLogFile;
             static bool fileInitialized = false;
             if (!fileInitialized) {
                 QString logPath = QDir::currentPath() + "/core_output.log";
-                debugLogFile = new QFile(logPath);
-                if (debugLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                debugLogFile.setFileName(logPath);
+                if (debugLogFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
                     fileInitialized = true;
                     // Write initial marker to confirm handler is working
-                    QTextStream initStream(debugLogFile);
+                    QTextStream initStream(&debugLogFile);
                     initStream << QDateTime::currentDateTime().toString(Qt::ISODate) << " [INIT] stdout handler initialized, first data received\n";
                     initStream.flush();
                 }
             }
-            if (debugLogFile && debugLogFile->isOpen()) {
-                QTextStream debugStream(debugLogFile);
+            if (debugLogFile.isOpen()) {
+                QTextStream debugStream(&debugLogFile);
                 debugStream << QDateTime::currentDateTime().toString(Qt::ISODate) << " [STDOUT] " << log;
                 debugStream.flush();
             }
@@ -154,21 +154,21 @@ namespace NekoGui_sys {
     void CoreProcess::setup_stderr_handler() {
         // Note: With MergedChannels, stderr is captured via stdout handler
         // But we keep this for compatibility and to enable stderr display
-        connect(this, &QProcess::readyReadStandardError, this, [&]() {
+        connect(this, &QProcess::readyReadStandardError, this, [this]() {
             auto log = readAllStandardError().trimmed();
-            
+
             // Debug: Always log to core_output.log for troubleshooting
-            static QFile *debugLogFile = nullptr;
+            static QFile debugLogFile;
             static bool fileInitialized = false;
             if (!fileInitialized) {
                 QString logPath = QDir::currentPath() + "/core_output.log";
-                debugLogFile = new QFile(logPath);
-                if (debugLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                debugLogFile.setFileName(logPath);
+                if (debugLogFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
                     fileInitialized = true;
                 }
             }
-            if (debugLogFile && debugLogFile->isOpen()) {
-                QTextStream debugStream(debugLogFile);
+            if (debugLogFile.isOpen()) {
+                QTextStream debugStream(&debugLogFile);
                 debugStream << QDateTime::currentDateTime().toString(Qt::ISODate) << " [STDERR] " << log << "\n";
                 debugStream.flush();
             }
@@ -185,7 +185,7 @@ namespace NekoGui_sys {
                 MW_show_log(log);
             }
         });
-        connect(this, &QProcess::errorOccurred, this, [&](QProcess::ProcessError error) {
+        connect(this, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
             if (error == QProcess::ProcessError::FailedToStart) {
                 failed_to_start = true;
                 MW_show_log("start core error occurred: " + errorString() + "\n");
@@ -194,7 +194,7 @@ namespace NekoGui_sys {
     }
 
     void CoreProcess::setup_state_handlers() {
-        connect(this, &QProcess::stateChanged, this, [&](QProcess::ProcessState state) {
+        connect(this, &QProcess::stateChanged, this, [this](QProcess::ProcessState state) {
             if (state == QProcess::NotRunning) {
                 NekoGui::dataStore->core_running = false;
             }
