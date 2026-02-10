@@ -117,7 +117,9 @@ bool MainWindow::StartVPNProcess() {
     auto scriptPath = NekoGui::WriteVPNLinuxScript(configPath);
 #ifdef Q_OS_WIN
     runOnNewThread([=] {
-        vpn_pid = 1; // TODO get pid?
+        // runProcessElevated is a blocking call that does not return the PID.
+        // Use sentinel -1 to indicate "VPN process running, PID unknown".
+        vpn_pid = -1;
         WinCommander::runProcessElevated(QApplication::applicationDirPath() + "/nekobox_core.exe",
                                          {"--disable-color", "run", "-c", configPath}, "",
                                          NekoGui::dataStore->vpn_hide_console ? WinCommander::SW_HIDE : WinCommander::SW_SHOWMINIMIZED); // blocking
