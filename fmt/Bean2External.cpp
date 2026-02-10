@@ -223,7 +223,17 @@ namespace NekoGui_fmt {
     ExternalBuildResult CustomBean::BuildExternal(int mapping_port, int socks_port, int external_stat) {
         ExternalBuildResult result{NekoGui::dataStore->extraCore->Get(core)};
 
-        result.arguments = command; // TODO split?
+        if (result.program.isEmpty()) {
+            result.error = QStringLiteral("External core '%1' not configured").arg(core);
+            return result;
+        }
+
+        if (!IsValidPort(mapping_port) || !IsValidPort(socks_port)) {
+            result.error = QStringLiteral("Invalid port number");
+            return result;
+        }
+
+        result.arguments = command;
 
         for (int i = 0; i < result.arguments.length(); i++) {
             auto arg = result.arguments[i];
