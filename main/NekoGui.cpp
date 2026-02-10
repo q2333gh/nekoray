@@ -46,16 +46,16 @@ namespace NekoGui_ConfigItem {
 
         switch (item->type) {
             case itemType::string:
-                *(QString *) item->ptr = *(QString *) p;
+                *static_cast<QString *>(item->ptr) = *static_cast<QString *>(p);
                 break;
             case itemType::boolean:
-                *(bool *) item->ptr = *(bool *) p;
+                *static_cast<bool *>(item->ptr) = *static_cast<bool *>(p);
                 break;
             case itemType::integer:
-                *(int *) item->ptr = *(int *) p;
+                *static_cast<int *>(item->ptr) = *static_cast<int *>(p);
                 break;
             case itemType::integer64:
-                *(long long *) item->ptr = *(long long *) p;
+                *static_cast<long long *>(item->ptr) = *static_cast<long long *>(p);
                 break;
             // others...
             case stringList:
@@ -73,28 +73,28 @@ namespace NekoGui_ConfigItem {
             switch (item->type) {
                 case itemType::string:
                     // Allow Empty
-                    if (!((QString *) item->ptr)->isEmpty()) {
-                        object.insert(item->name, *(QString *) item->ptr);
+                    if (!static_cast<QString *>(item->ptr)->isEmpty()) {
+                        object.insert(item->name, *static_cast<QString *>(item->ptr));
                     }
                     break;
                 case itemType::integer:
-                    object.insert(item->name, *(int *) item->ptr);
+                    object.insert(item->name, *static_cast<int *>(item->ptr));
                     break;
                 case itemType::integer64:
-                    object.insert(item->name, *(long long *) item->ptr);
+                    object.insert(item->name, *static_cast<long long *>(item->ptr));
                     break;
                 case itemType::boolean:
-                    object.insert(item->name, *(bool *) item->ptr);
+                    object.insert(item->name, *static_cast<bool *>(item->ptr));
                     break;
                 case itemType::stringList:
-                    object.insert(item->name, QList2QJsonArray<QString>(*(QList<QString> *) item->ptr));
+                    object.insert(item->name, QList2QJsonArray<QString>(*static_cast<QList<QString> *>(item->ptr)));
                     break;
                 case itemType::integerList:
-                    object.insert(item->name, QList2QJsonArray<int>(*(QList<int> *) item->ptr));
+                    object.insert(item->name, QList2QJsonArray<int>(*static_cast<QList<int> *>(item->ptr)));
                     break;
                 case itemType::jsonStore:
                     // _add 时应关联对应 JsonStore 的指针
-                    object.insert(item->name, ((JsonStore *) item->ptr)->ToJson());
+                    object.insert(item->name, static_cast<JsonStore *>(item->ptr)->ToJson());
                     break;
             }
         }
@@ -125,43 +125,43 @@ namespace NekoGui_ConfigItem {
                     if (value.type() != QJsonValue::String) {
                         continue;
                     }
-                    *(QString *) item->ptr = value.toString();
+                    *static_cast<QString *>(item->ptr) = value.toString();
                     break;
                 case itemType::integer:
                     if (value.type() != QJsonValue::Double) {
                         continue;
                     }
-                    *(int *) item->ptr = value.toInt();
+                    *static_cast<int *>(item->ptr) = value.toInt();
                     break;
                 case itemType::integer64:
                     if (value.type() != QJsonValue::Double) {
                         continue;
                     }
-                    *(long long *) item->ptr = value.toDouble();
+                    *static_cast<long long *>(item->ptr) = value.toDouble();
                     break;
                 case itemType::boolean:
                     if (value.type() != QJsonValue::Bool) {
                         continue;
                     }
-                    *(bool *) item->ptr = value.toBool();
+                    *static_cast<bool *>(item->ptr) = value.toBool();
                     break;
                 case itemType::stringList:
                     if (value.type() != QJsonValue::Array) {
                         continue;
                     }
-                    *(QList<QString> *) item->ptr = QJsonArray2QListString(value.toArray());
+                    *static_cast<QList<QString> *>(item->ptr) = QJsonArray2QListString(value.toArray());
                     break;
                 case itemType::integerList:
                     if (value.type() != QJsonValue::Array) {
                         continue;
                     }
-                    *(QList<int> *) item->ptr = QJsonArray2QListInt(value.toArray());
+                    *static_cast<QList<int> *>(item->ptr) = QJsonArray2QListInt(value.toArray());
                     break;
                 case itemType::jsonStore:
                     if (value.type() != QJsonValue::Object) {
                         continue;
                     }
-                    ((JsonStore *) item->ptr)->FromJson(value.toObject());
+                    static_cast<JsonStore *>(item->ptr)->FromJson(value.toObject());
                     break;
             }
         }
@@ -222,13 +222,14 @@ namespace NekoGui_ConfigItem {
 
 namespace NekoGui {
 
+    // Process-lifetime singleton; intentionally not deleted (OS reclaims at exit).
     DataStore *dataStore = new DataStore();
 
     // datastore
 
     DataStore::DataStore() : JsonStore() {
-        _add(new configItem("extraCore", dynamic_cast<JsonStore *>(extraCore), itemType::jsonStore));
-        _add(new configItem("inbound_auth", dynamic_cast<JsonStore *>(inbound_auth), itemType::jsonStore));
+        _add(new configItem("extraCore", dynamic_cast<JsonStore *>(extraCore.get()), itemType::jsonStore));
+        _add(new configItem("inbound_auth", dynamic_cast<JsonStore *>(inbound_auth.get()), itemType::jsonStore));
 
         _add(new configItem("user_agent2", &user_agent, itemType::string));
         _add(new configItem("test_url", &test_latency_url, itemType::string));

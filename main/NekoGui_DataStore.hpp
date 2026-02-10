@@ -135,7 +135,7 @@ namespace NekoGui {
         // Socks & HTTP Inbound
         QString inbound_address = "127.0.0.1";
         int inbound_socks_port = 2090; // or Mixed
-        InboundAuthorization *inbound_auth = new InboundAuthorization;
+        std::unique_ptr<InboundAuthorization> inbound_auth = std::make_unique<InboundAuthorization>();
         QString custom_inbound = "{\"inbounds\": []}";
 
         // Routing
@@ -166,7 +166,7 @@ namespace NekoGui {
         QString core_box_underlying_dns = "";
 
         // Other Core
-        ExtraCore *extraCore = new ExtraCore;
+        std::unique_ptr<ExtraCore> extraCore = std::make_unique<ExtraCore>();
 
         // Methods
 
