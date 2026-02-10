@@ -8,6 +8,8 @@
 
 namespace NekoGui {
 
+    // Process-lifetime singleton; intentionally not deleted (OS reclaims at exit).
+    // Avoiding explicit cleanup prevents Qt object destruction-order issues.
     ProfileManager *profileManager = new ProfileManager();
 
     ProfileManager::ProfileManager() : JsonStore("groups/pm.json") {
@@ -44,7 +46,7 @@ namespace NekoGui {
         for (auto id: profilesIdOrder) {
             auto ent = LoadProxyEntity(QStringLiteral("profiles/%1.json").arg(id));
             // Corrupted profile?
-            if (ent == nullptr || ent->bean == nullptr || ent->bean->version == -114514) {
+            if (ent == nullptr || ent->bean == nullptr || ent->bean->version == NekoGui_fmt::AbstractBean::INVALID_BEAN_VERSION) {
                 delProfile << id;
                 continue;
             }
@@ -152,7 +154,7 @@ namespace NekoGui {
 
         if (validType) {
             ent = NewProxyEntity(type);
-            validType = ent->bean->version != -114514;
+            validType = ent->bean->version != NekoGui_fmt::AbstractBean::INVALID_BEAN_VERSION;
         }
 
         if (validType) {
@@ -191,7 +193,7 @@ namespace NekoGui {
         } else if (type == "custom") {
             bean = new NekoGui_fmt::CustomBean();
         } else {
-            bean = new NekoGui_fmt::AbstractBean(-114514);
+            bean = new NekoGui_fmt::AbstractBean(NekoGui_fmt::AbstractBean::INVALID_BEAN_VERSION);
         }
 
         auto ent = std::make_shared<ProxyEntity>(bean, type);
