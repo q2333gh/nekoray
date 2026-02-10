@@ -181,6 +181,7 @@ set(PROJECT_SOURCES
         db/traffic/TrafficLooper.cpp
         db/ProfileFilter.cpp
         db/ConfigBuilder.cpp
+        db/ProxyEntity.cpp
 
         fmt/AbstractBean.cpp
         fmt/Bean2CoreObj_box.cpp

@@ -41,36 +41,15 @@ namespace NekoGui {
 
         [[nodiscard]] QColor DisplayLatencyColor() const;
 
-        [[nodiscard]] NekoGui_fmt::ChainBean *ChainBean() const {
-            return static_cast<NekoGui_fmt::ChainBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::SocksHttpBean *SocksHTTPBean() const {
-            return static_cast<NekoGui_fmt::SocksHttpBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::ShadowSocksBean *ShadowSocksBean() const {
-            return static_cast<NekoGui_fmt::ShadowSocksBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::VMessBean *VMessBean() const {
-            return static_cast<NekoGui_fmt::VMessBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::TrojanVLESSBean *TrojanVLESSBean() const {
-            return static_cast<NekoGui_fmt::TrojanVLESSBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::NaiveBean *NaiveBean() const {
-            return static_cast<NekoGui_fmt::NaiveBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::QUICBean *QUICBean() const {
-            return static_cast<NekoGui_fmt::QUICBean *>(bean.get());
-        };
-
-        [[nodiscard]] NekoGui_fmt::CustomBean *CustomBean() const {
-            return static_cast<NekoGui_fmt::CustomBean *>(bean.get());
-        };
+        // Typed accessors. Implemented out-of-line in `db/ProxyEntity.cpp` so we
+        // can include the concrete bean types there without bloating headers.
+        [[nodiscard]] NekoGui_fmt::ChainBean *ChainBean() const;
+        [[nodiscard]] NekoGui_fmt::SocksHttpBean *SocksHTTPBean() const;
+        [[nodiscard]] NekoGui_fmt::ShadowSocksBean *ShadowSocksBean() const;
+        [[nodiscard]] NekoGui_fmt::VMessBean *VMessBean() const;
+        [[nodiscard]] NekoGui_fmt::TrojanVLESSBean *TrojanVLESSBean() const;
+        [[nodiscard]] NekoGui_fmt::NaiveBean *NaiveBean() const;
+        [[nodiscard]] NekoGui_fmt::QUICBean *QUICBean() const;
+        [[nodiscard]] NekoGui_fmt::CustomBean *CustomBean() const;
     };
 } // namespace NekoGui

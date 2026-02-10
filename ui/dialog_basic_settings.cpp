@@ -93,7 +93,11 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 #endif
 
     // Style
-    ui->connection_statistics_box->setDisabled(true);
+    auto ensure_conn_stats_interval = [=]() {
+        if (ui->connection_statistics->isChecked() && ui->rfsh_r->currentIndex() == 5) {
+            ui->rfsh_r->setCurrentIndex(1);
+        }
+    };
     //
     D_LOAD_BOOL(check_include_pre)
     D_LOAD_BOOL(connection_statistics)
@@ -113,6 +117,10 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     } else {
         ui->rfsh_r->setCurrentIndex(5);
     }
+    connect(ui->connection_statistics, &QCheckBox::toggled, this, [=](bool) {
+        ensure_conn_stats_interval();
+    });
+    ensure_conn_stats_interval();
     //
     ui->language->setCurrentIndex(NekoGui::dataStore->language);
     connect(ui->language, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, [=](int index) {
@@ -249,6 +257,9 @@ void DialogBasicSettings::accept() {
         NekoGui::dataStore->traffic_loop_interval = 5000;
     } else {
         NekoGui::dataStore->traffic_loop_interval = 0;
+    }
+    if (NekoGui::dataStore->connection_statistics && NekoGui::dataStore->traffic_loop_interval == 0) {
+        NekoGui::dataStore->traffic_loop_interval = 1000;
     }
 
     // Subscription
