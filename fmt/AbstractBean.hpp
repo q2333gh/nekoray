@@ -26,6 +26,9 @@ namespace NekoGui_fmt {
 
     class AbstractBean : public JsonStore {
     public:
+        // Sentinel version indicating an invalid/unknown bean type
+        static constexpr int INVALID_BEAN_VERSION = -114514;
+
         int version;
 
         QString name = "";
