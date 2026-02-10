@@ -173,7 +173,10 @@ namespace NekoGui_fmt {
             if (!scy.isEmpty()) security = scy;
             // TLS (XTLS?)
             stream->security = objN["tls"].toString();
-            // TODO quic & kcp
+            // QUIC and mKCP transports: parsed but not fully supported by sing-box
+            if (net == "quic" || net == "kcp" || net == "mkcp") {
+                stream->network = net;
+            }
             return true;
         } else {
             // https://github.com/XTLS/Xray-core/discussions/716
