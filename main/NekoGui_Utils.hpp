@@ -42,14 +42,16 @@ inline const QString UNICODE_LRO = QString::fromUtf8(QByteArray::fromHex("E280AD
 
 #define Int2String(num) QString::number(num)
 
-inline QString SubStrBefore(QString str, const QString &sub) {
-    if (!str.contains(sub)) return str;
-    return str.left(str.indexOf(sub));
+inline QString SubStrBefore(const QString &str, const QString &sub) {
+    auto idx = str.indexOf(sub);
+    if (idx < 0) return str;
+    return str.left(idx);
 }
 
-inline QString SubStrAfter(QString str, const QString &sub) {
-    if (!str.contains(sub)) return str;
-    return str.right(str.length() - str.indexOf(sub) - sub.length());
+inline QString SubStrAfter(const QString &str, const QString &sub) {
+    auto idx = str.indexOf(sub);
+    if (idx < 0) return str;
+    return str.mid(idx + sub.length());
 }
 
 QString QStringList2Command(const QStringList &list);
@@ -104,6 +106,8 @@ QList<QString> QJsonArray2QListString(const QJsonArray &arr);
 QByteArray ReadFile(const QString &path);
 
 QString ReadFileText(const QString &path);
+
+void WriteCrashLog(const QString &message);
 
 // Validators
 
