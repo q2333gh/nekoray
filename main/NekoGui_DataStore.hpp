@@ -115,6 +115,11 @@ namespace NekoGui {
         bool start_minimal = false;
         int max_log_line = 200;
         QString splitter_state = "";
+        bool ensure_connect_enabled = false;
+        int ensure_connect_interval_sec = 60;
+        int ensure_connect_fail_count = 0;
+        long long ensure_connect_next_retry_at_ms = 0;
+        long long ensure_connect_last_failure_at_ms = 0;
 
         // Subscription
         QString user_agent = ""; // set at main.cpp

@@ -279,6 +279,11 @@ namespace NekoGui {
         _add(new configItem("start_minimal", &start_minimal, itemType::boolean));
         _add(new configItem("max_log_line", &max_log_line, itemType::integer));
         _add(new configItem("splitter_state", &splitter_state, itemType::string));
+        _add(new configItem("ensure_connect_enabled", &ensure_connect_enabled, itemType::boolean));
+        _add(new configItem("ensure_connect_interval_sec", &ensure_connect_interval_sec, itemType::integer));
+        _add(new configItem("ensure_connect_fail_count", &ensure_connect_fail_count, itemType::integer));
+        _add(new configItem("ensure_connect_next_retry_at_ms", &ensure_connect_next_retry_at_ms, itemType::integer64));
+        _add(new configItem("ensure_connect_last_failure_at_ms", &ensure_connect_last_failure_at_ms, itemType::integer64));
         _add(new configItem("utlsFingerprint", &utlsFingerprint, itemType::string));
         _add(new configItem("core_box_clash_api", &core_box_clash_api, itemType::integer));
         _add(new configItem("core_box_clash_api_secret", &core_box_clash_api_secret, itemType::string));

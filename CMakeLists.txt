@@ -6,6 +6,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+option(NEKO_BUILD_TESTS "Build project tests" OFF)
 
 # Optional: enable clang-tidy with cognitive complexity warnings when available
 option(NEKO_ENABLE_CLANG_TIDY "Enable clang-tidy static analysis if available" ON)
@@ -54,6 +55,9 @@ if (NOT QT_VERSION_MAJOR)
     set(QT_VERSION_MAJOR 5)
 endif ()
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Svg LinguistTools)
+if (NEKO_BUILD_TESTS)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Test)
+endif ()
 
 if (NKR_CROSS)
     set_property(TARGET Qt5::moc PROPERTY IMPORTED_LOCATION /usr/bin/moc)
@@ -215,6 +219,7 @@ set(PROJECT_SOURCES
         ui/mainwindow_core_process.cpp
         ui/mainwindow_core_download.cpp
         ui/mainwindow_ensure_connect.cpp
+        ui/ensure_connect_policy.cpp
         ui/mainwindow_speedtest.cpp
         ui/mainwindow_update.cpp
 
@@ -349,4 +354,17 @@ target_link_libraries(nekobox PRIVATE
 
 if (QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(nekobox)
+endif ()
+
+if (NEKO_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(ensure_connect_policy_test
+            test/ensure_connect_policy_test.cpp
+            ui/ensure_connect_policy.cpp
+    )
+    set_property(TARGET ensure_connect_policy_test PROPERTY AUTOMOC ON)
+    target_include_directories(ensure_connect_policy_test PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(ensure_connect_policy_test PRIVATE Qt${QT_VERSION_MAJOR}::Test)
+    add_test(NAME ensure_connect_policy_test COMMAND ensure_connect_policy_test)
 endif ()

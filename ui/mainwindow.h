@@ -171,6 +171,8 @@ private:
     int ensure_connect_fail_count = 0;
     int ensure_connect_target_id = -1;
     int ensure_connect_prev_latency = 0;
+    long long ensure_connect_next_retry_at_ms = 0;
+    long long ensure_connect_last_failure_at_ms = 0;
     //
     int proxy_last_order = -1;
     bool select_mode = false;
