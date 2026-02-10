@@ -223,7 +223,7 @@ protected:
 };
 
 inline MainWindow *GetMainWindow() {
-    return (MainWindow *) mainwindow;
+    return static_cast<MainWindow *>(mainwindow);
 }
 
 void UI_InitMainWindow();

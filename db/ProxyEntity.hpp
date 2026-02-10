@@ -42,35 +42,35 @@ namespace NekoGui {
         [[nodiscard]] QColor DisplayLatencyColor() const;
 
         [[nodiscard]] NekoGui_fmt::ChainBean *ChainBean() const {
-            return (NekoGui_fmt::ChainBean *) bean.get();
+            return static_cast<NekoGui_fmt::ChainBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::SocksHttpBean *SocksHTTPBean() const {
-            return (NekoGui_fmt::SocksHttpBean *) bean.get();
+            return static_cast<NekoGui_fmt::SocksHttpBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::ShadowSocksBean *ShadowSocksBean() const {
-            return (NekoGui_fmt::ShadowSocksBean *) bean.get();
+            return static_cast<NekoGui_fmt::ShadowSocksBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::VMessBean *VMessBean() const {
-            return (NekoGui_fmt::VMessBean *) bean.get();
+            return static_cast<NekoGui_fmt::VMessBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::TrojanVLESSBean *TrojanVLESSBean() const {
-            return (NekoGui_fmt::TrojanVLESSBean *) bean.get();
+            return static_cast<NekoGui_fmt::TrojanVLESSBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::NaiveBean *NaiveBean() const {
-            return (NekoGui_fmt::NaiveBean *) bean.get();
+            return static_cast<NekoGui_fmt::NaiveBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::QUICBean *QUICBean() const {
-            return (NekoGui_fmt::QUICBean *) bean.get();
+            return static_cast<NekoGui_fmt::QUICBean *>(bean.get());
         };
 
         [[nodiscard]] NekoGui_fmt::CustomBean *CustomBean() const {
-            return (NekoGui_fmt::CustomBean *) bean.get();
+            return static_cast<NekoGui_fmt::CustomBean *>(bean.get());
         };
     };
 } // namespace NekoGui
