@@ -692,7 +692,7 @@ namespace NekoGui {
         QJSONARRAY_ADD(routingRules, status->routingRules)
         auto routeObj = QJsonObject{
             {"rules", routingRules},
-            {"auto_detect_interface", dataStore->spmode_vpn}, // TODO force enable?
+            {"auto_detect_interface", true},
             {
                 "geoip",
                 QJsonObject{
