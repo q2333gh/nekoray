@@ -17,17 +17,6 @@
 #include <QDateTime>
 #include <QDir>
 
-// Helper function to write crash log
-static void WriteCrashLog(const QString &message) {
-    QString logPath = QDir::currentPath() + "/crash_log.txt";
-    QFile logFile(logPath);
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&logFile);
-        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - " << message << "\n";
-        logFile.close();
-    }
-}
-
 // ext core - shared helper function
 std::list<std::shared_ptr<NekoGui_sys::ExternalProcess>> CreateExtCFromExtR(const std::list<std::shared_ptr<NekoGui_fmt::ExternalBuildResult>> &extRs, bool start) {
     // plz run and start in same thread

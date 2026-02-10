@@ -11,6 +11,8 @@
 #include <QTimer>
 #include <QMessageBox>
 #include <QFile>
+#include <QDir>
+#include <QTextStream>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -141,6 +143,16 @@ QString ReadFileText(const QString &path) {
     file.open(QFile::ReadOnly | QFile::Text);
     QTextStream stream(&file);
     return stream.readAll();
+}
+
+void WriteCrashLog(const QString &message) {
+    QString logPath = QDir::currentPath() + "/crash_log.txt";
+    QFile logFile(logPath);
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream out(&logFile);
+        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - " << message << "\n";
+        logFile.close();
+    }
 }
 
 int MkPort() {

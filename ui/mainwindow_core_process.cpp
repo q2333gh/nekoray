@@ -28,17 +28,6 @@ using namespace NekoGui_rpc;
 // Forward declaration
 extern bool DownloadCoreExecutable(const QString &destDir);
 
-// Helper function to write crash log
-static void WriteCrashLog(const QString &message) {
-    QString logPath = QDir::currentPath() + "/crash_log.txt";
-    QFile logFile(logPath);
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&logFile);
-        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - " << message << "\n";
-        logFile.close();
-    }
-}
-
 // Helper to find core executable path
 static QString FindCoreExecutablePath() {
     QString core_path = QApplication::applicationDirPath() + "/";

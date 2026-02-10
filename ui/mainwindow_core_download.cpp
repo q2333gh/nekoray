@@ -9,17 +9,6 @@
 #include <QDir>
 #include <QProcess>
 
-// Helper function to write crash log
-static void WriteCrashLog(const QString &message) {
-    QString logPath = QDir::currentPath() + "/crash_log.txt";
-    QFile logFile(logPath);
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&logFile);
-        out << QDateTime::currentDateTime().toString(Qt::ISODate) << " - " << message << "\n";
-        logFile.close();
-    }
-}
-
 // Helper function to download core executable
 bool DownloadCoreExecutable(const QString &destDir) {
     WriteCrashLog(QString("Attempting to download core executable to: %1").arg(destDir));
