@@ -11,10 +11,11 @@
 
 namespace NekoGui_traffic {
 
+    // Process-lifetime singleton; intentionally not deleted (OS reclaims at exit).
     TrafficLooper *trafficLooper = new TrafficLooper;
     QElapsedTimer elapsedTimer;
 
-    TrafficData *TrafficLooper::update_stats(TrafficData *item) {
+    std::unique_ptr<TrafficData> TrafficLooper::update_stats(TrafficData *item) {
 #ifndef NKR_NO_GRPC
         // last update
         auto now = elapsedTimer.elapsed();
@@ -33,7 +34,7 @@ namespace NekoGui_traffic {
         item->uplink_rate = uplink * 1000 / interval;
 
         // return diff
-        auto ret = new TrafficData(item->tag);
+        auto ret = std::make_unique<TrafficData>(item->tag);
         ret->downlink = downlink;
         ret->uplink = uplink;
         ret->downlink_rate = item->downlink_rate;
@@ -54,26 +55,22 @@ namespace NekoGui_traffic {
     }
 
     void TrafficLooper::UpdateAll() {
-        std::map<std::string, TrafficData *> updated; // tag to diff
+        std::map<std::string, std::unique_ptr<TrafficData>> updated; // tag to diff
         for (const auto &item: this->items) {
             auto data = item.get();
-            auto diff = updated[data->tag];
+            auto it = updated.find(data->tag);
             // 避免重复查询一个 outbound tag
-            if (diff == nullptr) {
-                diff = update_stats(data);
-                updated[data->tag] = diff;
+            if (it == updated.end() || it->second == nullptr) {
+                updated[data->tag] = update_stats(data);
             } else {
-                data->uplink += diff->uplink;
-                data->downlink += diff->downlink;
-                data->uplink_rate = diff->uplink_rate;
-                data->downlink_rate = diff->downlink_rate;
+                data->uplink += it->second->uplink;
+                data->downlink += it->second->downlink;
+                data->uplink_rate = it->second->uplink_rate;
+                data->downlink_rate = it->second->downlink_rate;
             }
         }
-        updated[bypass->tag] = update_stats(bypass);
-        //
-        for (const auto &pair: updated) {
-            delete pair.second;
-        }
+        updated[bypass->tag] = update_stats(bypass.get());
+        // unique_ptrs auto-delete when map goes out of scope
     }
 
     void TrafficLooper::Loop() {

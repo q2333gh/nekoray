@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <memory>
 #include <QString>
 #include <QList>
 #include <QMutex>
@@ -9,21 +11,21 @@
 namespace NekoGui_traffic {
     class TrafficLooper {
     public:
-        bool loop_enabled = false;
-        bool looping = false;
+        std::atomic<bool> loop_enabled{false};
+        std::atomic<bool> looping{false};
         QMutex loop_mutex;
 
         QList<std::shared_ptr<TrafficData>> items;
-        TrafficData *proxy = nullptr;
+        TrafficData *proxy = nullptr; // Non-owning pointer into items list
 
         void UpdateAll();
 
         void Loop();
 
     private:
-        TrafficData *bypass = new TrafficData("bypass");
+        std::unique_ptr<TrafficData> bypass = std::make_unique<TrafficData>("bypass");
 
-        [[nodiscard]] static TrafficData *update_stats(TrafficData *item);
+        [[nodiscard]] static std::unique_ptr<TrafficData> update_stats(TrafficData *item);
 
         [[nodiscard]] static QJsonArray get_connection_list();
     };
