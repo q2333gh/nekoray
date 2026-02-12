@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"grpc_server"
 	"grpc_server/gen"
@@ -51,10 +53,12 @@ func (s *server) Start(ctx context.Context, in *gen.LoadConfigReq) (out *gen.Err
 		instance.SetLogWritter(neko_log.LogWriter)
 		// V2ray Service
 		if in.StatsOutbounds != nil {
-			instance.Router().SetV2RayServer(boxapi.NewSbV2rayServer(option.V2RayStatsServiceOptions{
+			statsOpt := option.V2RayStatsServiceOptions{
 				Enabled:   true,
 				Outbounds: in.StatsOutbounds,
-			}))
+			}
+			enableNekorayConnectionsCompat(&statsOpt, in.GetEnableNekorayConnections())
+			instance.Router().SetV2RayServer(boxapi.NewSbV2rayServer(statsOpt))
 		}
 	}
 
@@ -146,7 +150,114 @@ func (s *server) QueryStats(ctx context.Context, in *gen.QueryStatsReq) (out *ge
 
 func (s *server) ListConnections(ctx context.Context, in *gen.EmptyReq) (*gen.ListConnectionsResp, error) {
 	out := &gen.ListConnectionsResp{
-		// TODO upstream api
+		NekorayConnectionsJson: "[]",
+	}
+	if instance == nil {
+		return out, nil
+	}
+	v2rayServer := instance.Router().V2RayServer()
+	if v2rayServer == nil {
+		return out, nil
+	}
+
+	jsonPayload := listConnectionsCompat(v2rayServer)
+	if jsonPayload != "" {
+		out.NekorayConnectionsJson = jsonPayload
 	}
 	return out, nil
+}
+
+func enableNekorayConnectionsCompat(statsOpt *option.V2RayStatsServiceOptions, enabled bool) {
+	// Keep source compatible with multiple sing-box versions:
+	// older versions do not have this field.
+	v := reflect.ValueOf(statsOpt).Elem()
+	for _, fieldName := range []string{
+		"EnableNekorayConnections",
+		"NekorayConnections",
+		"EnableConnections",
+		"Connections",
+	} {
+		f := v.FieldByName(fieldName)
+		if f.IsValid() && f.CanSet() && f.Kind() == reflect.Bool {
+			f.SetBool(enabled)
+			return
+		}
+	}
+}
+
+func listConnectionsCompat(v2rayServer any) string {
+	// Probe common method names in different sing-box/libneko versions.
+	for _, methodName := range []string{
+		"ListConnections",
+		"Connections",
+		"GetConnections",
+		"NekorayConnections",
+		"DumpConnections",
+	} {
+		if payload, ok := callConnectionMethod(v2rayServer, methodName); ok {
+			return payload
+		}
+	}
+	return "[]"
+}
+
+func callConnectionMethod(target any, methodName string) (string, bool) {
+	defer func() {
+		_ = recover()
+	}()
+
+	mv := reflect.ValueOf(target).MethodByName(methodName)
+	if !mv.IsValid() || mv.Type().NumIn() != 0 {
+		return "", false
+	}
+
+	outs := mv.Call(nil)
+	if len(outs) == 0 {
+		return "", false
+	}
+	if len(outs) == 2 && !outs[1].IsNil() {
+		return "", false
+	}
+	return normalizeConnectionsOutput(outs[0].Interface())
+}
+
+func normalizeConnectionsOutput(raw any) (string, bool) {
+	switch v := raw.(type) {
+	case string:
+		return normalizeConnectionsJSON(v)
+	case []byte:
+		return normalizeConnectionsJSON(string(v))
+	default:
+		j, err := json.Marshal(v)
+		if err != nil {
+			return "", false
+		}
+		return normalizeConnectionsJSON(string(j))
+	}
+}
+
+func normalizeConnectionsJSON(payload string) (string, bool) {
+	if payload == "" {
+		return "[]", true
+	}
+
+	var parsed any
+	if err := json.Unmarshal([]byte(payload), &parsed); err != nil {
+		return "", false
+	}
+
+	switch v := parsed.(type) {
+	case []any:
+		out, _ := json.Marshal(v)
+		return string(out), true
+	case map[string]any:
+		for _, key := range []string{"connections", "Connections", "nekoray_connections", "data"} {
+			if arr, ok := v[key].([]any); ok {
+				out, _ := json.Marshal(arr)
+				return string(out), true
+			}
+		}
+	}
+
+	return "[]", true
 }

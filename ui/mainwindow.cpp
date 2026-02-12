@@ -218,6 +218,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->tableWidget_conn->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     ui->tableWidget_conn->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     ui->tableWidget_conn->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    connect(ui->down_tab, &QTabWidget::currentChanged, this, [=](int index) {
+        // Connection tab: render either data rows or informative placeholder.
+        if (index == 1) {
+            refresh_connection_list({});
+        }
+    });
     ui->proxyListTable->verticalHeader()->setDefaultSectionSize(24);
 
     // search box
