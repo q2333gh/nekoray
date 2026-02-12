@@ -647,6 +647,11 @@ MainWindow::~MainWindow() {
 
 void MainWindow::on_commitDataRequest() {
     qDebug() << "Start of data save";
+    // OS shutdown/restart may bypass on_menu_exit_triggered().
+    // Best-effort clear system proxy to avoid stale proxy settings after reboot.
+    if (NekoGui::dataStore->spmode_system_proxy) {
+        neko_set_spmode_system_proxy(false, false);
+    }
     //
     if (!isMaximized()) {
         auto olds = NekoGui::dataStore->mw_size;
