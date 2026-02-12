@@ -8,6 +8,8 @@ build_ninja/
 *.zip
 build_tidy/
 *.log
+.cursor/
+.claude/
 
 *~
 *.autosave
